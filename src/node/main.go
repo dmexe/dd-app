@@ -9,26 +9,21 @@ import (
 	"net"
 )
 
-var localAddr *string = flag.String("l", "localhost:9999", "local address")
+var localAddr *string = flag.String("l", "localhost:2376", "local address")
 var remoteAddr *string = flag.String("r", "/var/run/docker.sock", "remote address")
-var tlscacert *string = flag.String("--tlscacert", "certs.d/ca.pem", "")
-var tlscert *string = flag.String("--tlscert", "certs.d/server-cert.pem", "")
-var tlskey *string = flag.String("--tlskey", "certs.d/server-key.pem", "")
+var tlscacert *string = flag.String("--tlscacert", "certs.d/node/ca.pem", "")
+var tlscert *string = flag.String("--tlscert", "certs.d/node/server-cert.pem", "")
+var tlskey *string = flag.String("--tlskey", "certs.d/node/server-key.pem", "")
 
-func handleConn(n int, in <-chan *tls.Conn, out chan<- *Client) {
+var tlsConfig *tls.Config
+
+func handleConn(n int, in <-chan *net.TCPConn) {
 	for conn := range in {
 		client, err := NewClient(n, *remoteAddr, conn)
 		if err == nil {
 			client.Proxy()
-			out <- client
 		}
 	}
-}
-
-func closeConn(in <-chan *Client) {
-	//for c := range in {
-	//c.Close()
-	//}
 }
 
 func main() {
@@ -49,7 +44,7 @@ func main() {
 	caCertPool.AppendCertsFromPEM(caCert)
 
 	// Setup config
-	tlsConfig := &tls.Config{
+	tlsConfig = &tls.Config{
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{cert},
 		ClientCAs:    caCertPool,
@@ -68,28 +63,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pending, complete := make(chan *tls.Conn), make(chan *Client)
+	pending := make(chan *net.TCPConn)
 
 	for i := 0; i < 5; i++ {
-		go handleConn(i, pending, complete)
+		go handleConn(i, pending)
 	}
-	go closeConn(complete)
 
 	for {
 		conn, err := listener.AcceptTCP()
 		if err != nil {
 			log.Error(err)
 		} else {
-			log.Info("Accept ", conn.RemoteAddr())
-
-			tlsConn := tls.Server(conn, tlsConfig)
-			err = tlsConn.Handshake()
-			if err != nil {
-				conn.Close()
-				log.Error("Client ", conn.RemoteAddr(), " error: ", err)
-			} else {
-				pending <- tlsConn
-			}
+			log.WithFields(log.Fields{
+				"client": conn.RemoteAddr(),
+			}).Info("Accept connection")
+			pending <- conn
 		}
 	}
 }

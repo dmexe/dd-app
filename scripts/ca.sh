@@ -3,10 +3,12 @@
 set -e pipefail
 set -x
 
-cn="${CN:-localhost}"
+server_cn="${SERVER_CN:-localhost}"
+client_cn="${CLIENT_CN:-client}"
+root=${CA_ROOT:-certs.d/node}
 
-mkdir -p certs.d
-cd certs.d
+mkdir -p $root
+cd $root
 
 openssl genrsa -aes256 -passout pass:foobar -out ca-key.pem 2048
 
@@ -24,7 +26,7 @@ openssl req \
 openssl genrsa \
   -out server-key.pem 2048
 openssl req \
-  -subj "/CN=${cn}" -new -key server-key.pem -out server.csr
+  -subj "/CN=${server_cn}" -new -key server-key.pem -out server.csr
 
 openssl x509 \
   -req -days 365 -in server.csr -CA ca.pem -CAkey ca-key.pem \
@@ -34,7 +36,7 @@ openssl x509 \
 # client
 
 openssl genrsa -out key.pem 2048
-openssl req -subj '/CN=client' -new -key key.pem -out client.csr
+openssl req -subj "/CN=${client_cn}" -new -key key.pem -out client.csr
 # To make the key suitable for client authentication, create an extensions config file:
 echo extendedKeyUsage = clientAuth > extfile.cnf
 

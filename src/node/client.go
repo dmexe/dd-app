@@ -9,6 +9,7 @@ import (
 
 type Client struct {
 	workerId   int
+	origConn   *net.TCPConn
 	clientConn *tls.Conn
 	serverConn *net.UnixConn
 	log        *log.Entry
@@ -29,9 +30,9 @@ func (c *Client) Copy(name string, dst net.Conn, src net.Conn, closedCh chan boo
 
 	if err := src.Close(); err != nil {
 		c.log.Error(name, " connection close error:", err)
+	} else {
+		c.log.Info(name, " connection successfuly closed")
 	}
-
-	c.log.Info(name, " connection successfuly closed")
 
 	closedCh <- true
 }
@@ -68,29 +69,43 @@ func (c *Client) Proxy() {
 	c.log.Info("Done")
 }
 
-func NewClient(workerId int, remoteAddr string, clientConn *tls.Conn) (*Client, error) {
+func NewClient(workerId int, remoteAddr string, conn *net.TCPConn) (*Client, error) {
 	logger := log.WithFields(log.Fields{
 		"worker": workerId,
-		"client": clientConn.RemoteAddr().String(),
+		"client": conn.RemoteAddr().String(),
 	})
-
 	logger.Info("Creating new client")
+
+	tlsConn := tls.Server(conn, tlsConfig)
+
+	logger.Info("Wait handshake")
+	err := tlsConn.Handshake()
+	if err != nil {
+		logger.Error(err)
+		if err := tlsConn.Close(); err != nil {
+			logger.Error(err)
+		} else {
+			logger.Error("Client connection closed")
+		}
+		return nil, err
+	}
 
 	serverConn, err := net.Dial("unix", remoteAddr)
 	if err != nil {
 		logger.Error(err)
-		if err := clientConn.Close(); err != nil {
+		if err := tlsConn.Close(); err != nil {
 			logger.Error(err)
+		} else {
+			logger.Error("Client connection closed")
 		}
-		logger.Error("Client connection closed")
 		return nil, err
 	}
 
 	logger.Info("Open connection to ", serverConn.RemoteAddr())
-
 	client := &Client{
 		workerId:   workerId,
-		clientConn: clientConn,
+		origConn:   conn,
+		clientConn: tlsConn,
 		serverConn: serverConn.(*net.UnixConn),
 		log:        logger,
 	}
