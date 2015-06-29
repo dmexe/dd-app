@@ -1,102 +1,76 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"flag"
 	"fmt"
 	"github.com/Sirupsen/logrus"
-	"io/ioutil"
+	golog "log"
 	"net/http"
 	"net/http/httputil"
+	"strconv"
 )
 
-var localAddr *string = flag.String("l", "localhost:2376", "local address")
+var (
+	bindAddr *string = flag.String("b", ":2376", "bind address")
 
-var tlscacert *string = flag.String("--tlscacert", "certs.d/proxy/ca.pem", "")
-var tlscert *string = flag.String("--tlscert", "certs.d/proxy/server-cert.pem", "")
-var tlskey *string = flag.String("--tlskey", "certs.d/proxy/server-key.pem", "")
+	proxyTlsDir *string = flag.String("proxy-tls-dir", "certs.d/proxy", "")
+	nodeTlsDir  *string = flag.String("node-tls-dir", "certs.d/node", "")
 
-var tlscacertNode *string = flag.String("--tlscacert-node", "certs.d/node/ca.pem", "")
-var tlscertNode *string = flag.String("--tlscert-node", "certs.d/node/cert.pem", "")
-var tlskeyNode *string = flag.String("--tlskey-node", "certs.d/node/key.pem", "")
-
-var log = logrus.New()
+	log = logrus.New()
+)
 
 func main() {
 	flag.Parse()
 
-	// Load client cert
-	cert, err := tls.LoadX509KeyPair(*tlscert, *tlskey)
+	lw := log.Writer()
+	defer lw.Close()
+
+	var (
+		proxyTls = NewTlsDir(*proxyTlsDir, TlsDirServer)
+		nodeTls  = NewTlsDir(*nodeTlsDir, TlsDirClient)
+	)
+
+	proxyTlsConfig, err := proxyTls.Config()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Load CA cert
-	caCert, err := ioutil.ReadFile(*tlscacert)
+	nodeTlsConfig, err := nodeTls.Config()
 	if err != nil {
 		log.Fatal(err)
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-
-	// Setup config
-	tlsConfig := &tls.Config{
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		Certificates: []tls.Certificate{cert},
-		ClientCAs:    caCertPool,
-		RootCAs:      caCertPool,
-	}
-
-	// Load client cert
-	certNode, err := tls.LoadX509KeyPair(*tlscertNode, *tlskeyNode)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Load CA cert
-	caCertNode, err := ioutil.ReadFile(*tlscacertNode)
-	if err != nil {
-		log.Fatal(err)
-	}
-	caCertPoolNode := x509.NewCertPool()
-	caCertPoolNode.AppendCertsFromPEM(caCertNode)
-
-	// Setup config
-	tlsConfigNode := &tls.Config{
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		Certificates: []tls.Certificate{certNode},
-		ClientCAs:    caCertPoolNode,
-		RootCAs:      caCertPoolNode,
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Info("Starting ", r.Method, " ", r.URL)
 		director := func(req *http.Request) {
-			fmt.Printf("%+v", req.TLS)
 			req = r
 			req.URL.Scheme = "https"
-			req.URL.Host = "vexor-bot:9999"
+			req.URL.Host = "192.168.87.170:2376"
 		}
 		transport := &http.Transport{
-			TLSClientConfig: tlsConfigNode,
+			TLSClientConfig: nodeTlsConfig,
 		}
+
 		proxy := &httputil.ReverseProxy{
 			Director:  director,
 			Transport: transport,
+			ErrorLog:  golog.New(w, "", 0),
 		}
-		proxy.ServeHTTP(w, r)
+
+		lrw := NewLogResponseWriter(w)
+
+		proxy.ServeHTTP(lrw, r)
+
+		log.Info("Finish ", r.Method, " ", r.URL, " status=", strconv.Itoa(lrw.Status()), " len=", strconv.Itoa(lrw.Size()))
 	})
 
 	server := &http.Server{
-		Addr: ":8181",
+		Addr:     *bindAddr,
+		ErrorLog: golog.New(lw, "", 0),
 	}
-	if err != nil {
-		log.Fatal(err)
-	}
+	server.TLSConfig = proxyTlsConfig
 
-	server.TLSConfig = tlsConfig
-
-	err = server.ListenAndServeTLS(*tlscert, *tlskey)
+	err = server.ListenAndServeTLS(proxyTls.CertPath, proxyTls.KeyPath)
 	if err != nil {
 		log.Fatal(err)
 	}
