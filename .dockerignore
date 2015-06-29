@@ -1,5 +1,6 @@
+.git
+bin
 pkg
 vendor/src
 certs.d
 tmp
-bin

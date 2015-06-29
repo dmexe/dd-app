@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	log "github.com/Sirupsen/logrus"
 	"io"
 	"net"
@@ -8,7 +9,7 @@ import (
 
 type Client struct {
 	workerId   int
-	clientConn *net.TCPConn
+	clientConn *tls.Conn
 	serverConn *net.UnixConn
 	log        *log.Entry
 }
@@ -59,7 +60,7 @@ func (c *Client) Proxy() {
 		waitFor = serverClosed
 		c.log.Info("Finalize server connection")
 	case <-serverClosed:
-		c.clientConn.CloseRead()
+		c.clientConn.Close()
 		waitFor = clientClosed
 		c.log.Info("Finalize client connection")
 	}
@@ -67,7 +68,7 @@ func (c *Client) Proxy() {
 	c.log.Info("Done")
 }
 
-func NewClient(workerId int, remoteAddr string, clientConn *net.TCPConn) (*Client, error) {
+func NewClient(workerId int, remoteAddr string, clientConn *tls.Conn) (*Client, error) {
 	logger := log.WithFields(log.Fields{
 		"worker": workerId,
 		"client": clientConn.RemoteAddr().String(),

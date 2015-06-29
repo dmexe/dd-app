@@ -1,15 +1,21 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	log "github.com/Sirupsen/logrus"
+	"io/ioutil"
 	"net"
 )
 
 var localAddr *string = flag.String("l", "localhost:9999", "local address")
 var remoteAddr *string = flag.String("r", "/var/run/docker.sock", "remote address")
+var tlscacert *string = flag.String("--tlscacert", "certs.d/ca.pem", "")
+var tlscert *string = flag.String("--tlscert", "certs.d/server-cert.pem", "")
+var tlskey *string = flag.String("--tlskey", "certs.d/server-key.pem", "")
 
-func handleConn(n int, in <-chan *net.TCPConn, out chan<- *Client) {
+func handleConn(n int, in <-chan *tls.Conn, out chan<- *Client) {
 	for conn := range in {
 		client, err := NewClient(n, *remoteAddr, conn)
 		if err == nil {
@@ -28,6 +34,28 @@ func closeConn(in <-chan *Client) {
 func main() {
 	flag.Parse()
 
+	// Load client cert
+	cert, err := tls.LoadX509KeyPair(*tlscert, *tlskey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Load CA cert
+	caCert, err := ioutil.ReadFile(*tlscacert)
+	if err != nil {
+		log.Fatal(err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	// Setup config
+	tlsConfig := &tls.Config{
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    caCertPool,
+		RootCAs:      caCertPool,
+	}
+
 	log.Info("Listening: ", *localAddr, ", proxying ", *remoteAddr)
 
 	addr, err := net.ResolveTCPAddr("tcp", *localAddr)
@@ -40,7 +68,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pending, complete := make(chan *net.TCPConn), make(chan *Client)
+	pending, complete := make(chan *tls.Conn), make(chan *Client)
 
 	for i := 0; i < 5; i++ {
 		go handleConn(i, pending, complete)
@@ -49,10 +77,19 @@ func main() {
 
 	for {
 		conn, err := listener.AcceptTCP()
-		log.Info("Accept ", conn.RemoteAddr())
 		if err != nil {
-			panic(err)
+			log.Error(err)
+		} else {
+			log.Info("Accept ", conn.RemoteAddr())
+
+			tlsConn := tls.Server(conn, tlsConfig)
+			err = tlsConn.Handshake()
+			if err != nil {
+				conn.Close()
+				log.Error("Client ", conn.RemoteAddr(), " error: ", err)
+			} else {
+				pending <- tlsConn
+			}
 		}
-		pending <- conn
 	}
 }
