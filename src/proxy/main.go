@@ -2,76 +2,37 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"github.com/Sirupsen/logrus"
-	golog "log"
-	"net/http"
-	"net/http/httputil"
-	"strconv"
+	log "github.com/Sirupsen/logrus"
 )
 
 var (
 	bindAddr *string = flag.String("b", ":2376", "bind address")
 
-	proxyTlsDir *string = flag.String("proxy-tls-dir", "certs.d/proxy", "")
-	nodeTlsDir  *string = flag.String("node-tls-dir", "certs.d/node", "")
-
-	log = logrus.New()
+	tlsProxyDir *string = flag.String("tls-proxy", "certs.d/proxy", "")
+	tlsNodeDir  *string = flag.String("tls-node", "certs.d/node", "")
 )
 
 func main() {
 	flag.Parse()
 
-	lw := log.Writer()
-	defer lw.Close()
-
 	var (
-		proxyTls = NewTlsDir(*proxyTlsDir, TlsDirServer)
-		nodeTls  = NewTlsDir(*nodeTlsDir, TlsDirClient)
+		tlsProxy = NewTlsDir(*tlsProxyDir, TlsDirServer)
+		tlsNode  = NewTlsDir(*tlsNodeDir, TlsDirClient)
 	)
 
-	proxyTlsConfig, err := proxyTls.Config()
+	tlsProxyCfg, err := tlsProxy.Config()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	nodeTlsConfig, err := nodeTls.Config()
+	tlsNodeCfg, err := tlsNode.Config()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Info("Starting ", r.Method, " ", r.URL)
-		director := func(req *http.Request) {
-			req = r
-			req.URL.Scheme = "https"
-			req.URL.Host = "192.168.87.170:2376"
-		}
-		transport := &http.Transport{
-			TLSClientConfig: nodeTlsConfig,
-		}
+	w := NewWorker(5, tlsProxyCfg, tlsNodeCfg)
 
-		proxy := &httputil.ReverseProxy{
-			Director:  director,
-			Transport: transport,
-			ErrorLog:  golog.New(w, "", 0),
-		}
-
-		lrw := NewLogResponseWriter(w)
-
-		proxy.ServeHTTP(lrw, r)
-
-		log.Info("Finish ", r.Method, " ", r.URL, " status=", strconv.Itoa(lrw.Status()), " len=", strconv.Itoa(lrw.Size()))
-	})
-
-	server := &http.Server{
-		Addr:     *bindAddr,
-		ErrorLog: golog.New(lw, "", 0),
-	}
-	server.TLSConfig = proxyTlsConfig
-
-	err = server.ListenAndServeTLS(proxyTls.CertPath, proxyTls.KeyPath)
-	if err != nil {
+	if err = w.Listen(*bindAddr); err != nil {
 		log.Fatal(err)
 	}
 }
