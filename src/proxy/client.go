@@ -28,7 +28,16 @@ func (c *Client) Copy(name string, dst net.Conn, src net.Conn, closedCh chan boo
 	n, err := io.Copy(dst, src)
 	c.log.Info(name, " copy ", n, " bytes")
 	if err != nil {
-		c.log.Info(name, " stream copy ", err)
+		switch err.(type) {
+		case *net.OpError:
+			if err.(*net.OpError).Timeout() {
+				c.log.Info(name, " stream copy ", err)
+			} else {
+				c.log.Error(name, " stream copy ", err)
+			}
+		default:
+			c.log.Error(name, " stream copy ", err)
+		}
 	}
 
 	if err := src.Close(); err != nil {
@@ -71,7 +80,7 @@ func (c *Client) Proxy() {
 	c.log.Info("Done")
 }
 
-func NewClient(workerId int, conn *tls.Conn, tlsConfig *tls.Config) (*Client, error) {
+func NewClient(workerId int, conn *tls.Conn, tlsConfig *tls.Config, lookupUrl string) (*Client, error) {
 	logger := tlsConnLog(conn).WithFields(log.Fields{
 		"worker": workerId,
 	})
@@ -86,7 +95,13 @@ func NewClient(workerId int, conn *tls.Conn, tlsConfig *tls.Config) (*Client, er
 		}
 	}
 
-	addr, err := net.ResolveTCPAddr("tcp", "192.168.87.170:2376")
+	dockerHost, err := LookupDockerUrl(lookupUrl)
+	if err != nil {
+		closer(err)
+		return nil, err
+	}
+
+	addr, err := net.ResolveTCPAddr("tcp", dockerHost)
 	if err != nil {
 		closer(err)
 		return nil, err
@@ -101,7 +116,7 @@ func NewClient(workerId int, conn *tls.Conn, tlsConfig *tls.Config) (*Client, er
 	tlsConfig.InsecureSkipVerify = true
 	tlsConn := tls.Client(serverConn, tlsConfig)
 
-	logger.Info("Open connection to ", serverConn.RemoteAddr())
+	logger.Info("Established ", serverConn.RemoteAddr(), " <-> ", tlsConn.RemoteAddr())
 	client := &Client{
 		workerId:   workerId,
 		clientConn: conn,

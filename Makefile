@@ -1,7 +1,10 @@
+.PHONY: build deps-gb deps-fetch
+
 build:
 	gb build
 
-deps:
+deps-gb:
 	go get github.com/constabulary/gb/...
-	gb vendor update -all
 
+deps-fetch: deps-gb
+	gb vendor list -f "-branch {{.Branch}} -tag {{.Revision}} {{.Importpath}}" | xargs gb vendor fetch

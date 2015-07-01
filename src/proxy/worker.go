@@ -7,18 +7,20 @@ import (
 )
 
 type Worker struct {
-	pending  chan *tls.Conn
-	Num      int
-	tlsProxy *tls.Config
-	tlsNode  *tls.Config
+	pending   chan *tls.Conn
+	Num       int
+	tlsProxy  *tls.Config
+	tlsNode   *tls.Config
+	lookupUrl string
 }
 
-func NewWorker(n int, tlsProxy *tls.Config, tlsNode *tls.Config) *Worker {
+func NewWorker(n int, tlsProxy *tls.Config, tlsNode *tls.Config, lookupUrl string) *Worker {
 	w := &Worker{
-		pending:  make(chan *tls.Conn, n),
-		Num:      n,
-		tlsProxy: tlsProxy,
-		tlsNode:  tlsNode,
+		pending:   make(chan *tls.Conn, n),
+		Num:       n,
+		tlsProxy:  tlsProxy,
+		tlsNode:   tlsNode,
+		lookupUrl: lookupUrl,
 	}
 
 	return w
@@ -26,7 +28,7 @@ func NewWorker(n int, tlsProxy *tls.Config, tlsNode *tls.Config) *Worker {
 
 func (w *Worker) Handle(index int) {
 	for conn := range w.pending {
-		client, err := NewClient(index, conn, w.tlsNode)
+		client, err := NewClient(index, conn, w.tlsNode, w.lookupUrl)
 		if err == nil {
 			client.Proxy()
 		} else {

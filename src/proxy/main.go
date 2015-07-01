@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	bindAddr *string = flag.String("b", ":2376", "bind address")
+	bindAddr  *string = flag.String("b", ":2376", "bind address")
+	lookupUrl *string = flag.String("l", "http://localhost:80", "lookup url")
 
 	tlsProxyDir *string = flag.String("tls-proxy", "certs.d/proxy", "")
 	tlsNodeDir  *string = flag.String("tls-node", "certs.d/node", "")
@@ -30,7 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	w := NewWorker(5, tlsProxyCfg, tlsNodeCfg)
+	w := NewWorker(5, tlsProxyCfg, tlsNodeCfg, *lookupUrl)
 
 	if err = w.Listen(*bindAddr); err != nil {
 		log.Fatal(err)
