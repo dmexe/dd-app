@@ -1,0 +1,5 @@
+.git
+proxy/bin
+proxy/pkg
+certs.d
+tmp

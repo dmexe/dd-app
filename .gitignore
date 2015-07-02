@@ -1,5 +1,2 @@
-pkg
-vendor/src
 certs.d
 tmp
-bin

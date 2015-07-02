@@ -5,7 +5,7 @@ set -x
 
 eval "$(docker-machine env local)"
 
-bin/proxy -tls-node $DOCKER_CERT_PATH -l $DOCKER_HOST &
+apps/proxy/bin/proxy -tls-node $DOCKER_CERT_PATH -tls-proxy $(pwd)/certs.d/proxy -l $DOCKER_HOST &
 pid=$!
 
 function finish {
@@ -16,7 +16,7 @@ trap finish EXIT
 
 sleep 1
 
-docker="docker --tlsverify --tlscacert=certs.d/proxy/ca.pem --tlscert=certs.d/proxy/cert.pem --tlskey=certs.d/proxy/key.pem -H localhost:2376"
+docker="docker --tlsverify --tlscacert=$(pwd)/certs.d/proxy/ca.pem --tlscert=$(pwd)/certs.d/proxy/cert.pem --tlskey=$(pwd)/certs.d/proxy/key.pem -H localhost:2376"
 
 $docker images
-$docker build --force-rm --no-cache .
+(cd apps/proxy && $docker build --force-rm --no-cache .)
