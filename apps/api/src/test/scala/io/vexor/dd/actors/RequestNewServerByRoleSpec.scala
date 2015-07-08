@@ -7,7 +7,7 @@ import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
 
-class RequestNewServerSpec extends TestKitBase with ImplicitSender
+class RequestNewServerByRoleSpec extends TestKitBase with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll with ApplicationEnv {
 
   override def appEnv    = "test"
@@ -20,9 +20,9 @@ class RequestNewServerSpec extends TestKitBase with ImplicitSender
 
   "A RequestNewServer actor" must {
     "receive New request" in {
-      val a = system.actorOf(RequestNewServer.props)
-      a ! RequestNewServer.Role("default")
-      expectMsg(RequestNewServer.Created("default"))
+      val a = system.actorOf(RequestNewServerByRole.props)
+      a ! RequestNewServerByRole.Role("default")
+      expectMsg(RequestNewServerByRole.Created("default"))
     }
   }
 }

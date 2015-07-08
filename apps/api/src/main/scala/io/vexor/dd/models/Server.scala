@@ -74,48 +74,45 @@ object Server {
     }
   }
 
-  object Table {
 
-    import Status._
+  import Status._
 
-    def fromRow(row: Row): PersistedRecord = {
-      PersistedRecord(
-        row.getUUID("id"),
-        row.getString("role"),
-        row.getInt("status").toValue,
-        row.getDate("updated_at")
-      )
-    }
-
-    def save(server: NewRecord): Unit = {
-      val sql =
-        s"""
-        INSERT INTO ${tableName} (id, role, status, updated_at)
-        VALUES (now(), ?, 0, dateof(now()))
-        """.squish
-      conn.execute(sql, server.role)
-    }
-
-    def save(server: PersistedRecord): Unit = {
-      val sql =
-        s"""
-        UPDATE ${tableName} SET
-          role = ?,
-          status = ?,
-          updated_at = dateof(now())
-        WHERE id = ?
-        """.squish
-      conn.execute(sql, server.role, server.status.toInt, server.id)
-    }
-
-    def oneByRole(role: String): Option[PersistedRecord] = {
-      val sql =
-        s"""
-        SELECT * FROM ${tableName} WHERE role = ? LIMIT 1
-        """.squish
-      val re = conn.execute(sql, role).one()
-      Option(re).map(fromRow)
-    }
+  def fromRow(row: Row): PersistedRecord = {
+    PersistedRecord(
+      row.getUUID("id"),
+      row.getString("role"),
+      row.getInt("status").toValue,
+      row.getDate("updated_at")
+    )
   }
 
+  def save(server: NewRecord): Unit = {
+    val sql =
+      s"""
+      INSERT INTO ${tableName} (id, role, status, updated_at)
+      VALUES (now(), ?, 0, dateof(now()))
+      """.squish
+    conn.execute(sql, server.role)
+  }
+
+  def save(server: PersistedRecord): Unit = {
+    val sql =
+      s"""
+      UPDATE ${tableName} SET
+        role = ?,
+        status = ?,
+        updated_at = dateof(now())
+      WHERE id = ?
+      """.squish
+    conn.execute(sql, server.role, server.status.toInt, server.id)
+  }
+
+  def oneByRole(role: String): Option[PersistedRecord] = {
+    val sql =
+      s"""
+      SELECT * FROM ${tableName} WHERE role = ? LIMIT 1
+      """.squish
+    val re = conn.execute(sql, role).one()
+    Option(re).map(fromRow)
+  }
 }
