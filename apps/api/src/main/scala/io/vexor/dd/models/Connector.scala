@@ -7,6 +7,7 @@ import Utils._
 object Connector {
   var cluster: Option[Cluster] = None
   var session: Option[Session] = None
+  val url:     Option[String]  = None
 
   def open(urlString: String) {
     close()
