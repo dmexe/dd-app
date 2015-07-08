@@ -1,25 +1,32 @@
 package io.vexor.dd
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.ActorSystem
+import akka.pattern.ask
+import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
+import io.vexor.dd.actors.GetReadyServer
+import io.vexor.dd.models.{Connector, Server}
+
 import scala.concurrent.Await
 import scala.util.Properties
-import com.typesafe.config.ConfigFactory
-import akka.util.Timeout
-import akka.pattern.ask
 
-trait ApplicationEnv {
-  implicit lazy val appConfig  = ConfigFactory.load(appEnv)
-  implicit lazy val system     = ActorSystem(s"dd-${appEnv}", appConfig)
+trait AppEnv {
+  implicit lazy val system = ActorSystem(s"dd-$appEnv", appConfig)
+
+  lazy val appConfig   = ConfigFactory.load(appEnv)
+  lazy val databaseUrl = appConfig.getString("cassandra.url")
 
   def appEnv = Properties.envOrElse("APP_ENV", "development")
 }
 
-object ApplicationMain extends App with ApplicationEnv {
-  models.Connector.open(appConfig.getString("cassandra.url"))
+object Main extends App with AppEnv {
+  implicit val timeout = Timeout(5, TimeUnit.SECONDS)
 
-  implicit val timeout = Timeout(5 * 1000)
+  val session = Connector(databaseUrl)
+  val creator = system.actorOf(GetReadyServer.props(Server(session)))
 
-  val creator = system.actorOf(actors.RequestNewServerByRole.props)
   val fu1 = creator ? "default3"
   val fu2 = creator ? "default4"
   val fu3 = creator ? "default5"
@@ -28,4 +35,5 @@ object ApplicationMain extends App with ApplicationEnv {
   val re3 = Await.result(fu3, timeout.duration)
 
   system.awaitTermination()
+  Connector.close(session)
 }

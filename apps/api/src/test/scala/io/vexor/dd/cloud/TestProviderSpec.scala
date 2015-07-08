@@ -7,7 +7,7 @@ import io.vexor.dd.models.Server
 
 class TestProviderSpec extends WordSpec with Matchers {
 
-  val s = Server.PersistedRecord(
+  val s = Server.Persisted(
     new UUID(0,0),
     "default",
     Server.Status.New,

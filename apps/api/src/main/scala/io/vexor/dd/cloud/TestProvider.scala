@@ -4,14 +4,14 @@ import io.vexor.dd.models.Server
 
 object TestProvider {
 
-  def create(server: Server.PersistedRecord): Option[Boolean] = {
+  def create(server: Server.Persisted): Option[Boolean] = {
     server.role match {
       case "create-fail" => None
       case _             => Some(true)
     }
   }
 
-  def isReady(server: Server.PersistedRecord): Option[Boolean] = {
+  def isReady(server: Server.Persisted): Option[Boolean] = {
     server.role match {
       case "is-ready-fail" => None
       case "is-ready-nook" => Some(false)
