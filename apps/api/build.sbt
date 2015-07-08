@@ -6,6 +6,10 @@ scalaVersion := "2.11.6"
 
 val akkaVersion    = "2.3.11"
 
+// enablePlugins(JDKPackagerPlugin)
+enablePlugins(JavaAppPackaging)
+
+
 /*
 resolvers ++= Seq(
   "Websudos releases" at "https://dl.bintray.com/websudos/oss-releases/"
