@@ -49,8 +49,6 @@ class GetReadyServerSpec extends TestKitBase with ImplicitSender
       }
 
       re1.asInstanceOf[Server.Persisted].id should be(re2.asInstanceOf[Server.Persisted].id)
-
-      println(re1)
     }
   }
 }

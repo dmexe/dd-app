@@ -1,21 +1,33 @@
 package io.vexor.dd.cloud
 
-import io.vexor.dd.models.Server
+import java.util.UUID
 
-object TestProvider {
+object Status extends Enumeration {
+  val Pending, Active, Broken = Value
+}
 
-  def create(server: Server.Persisted): Option[Boolean] = {
-    server.role match {
-      case "create-fail" => None
-      case _             => Some(true)
-    }
+case class Instance (
+  id:     UUID,
+  status: Status.Value
+)
+
+trait BaseCloudProvider {
+  def create(id: UUID): Boolean
+  def find(id: UUID): Option[Instance]
+  def status(id: UUID): Option[Status.Value]
+}
+
+class TestProvider extends BaseCloudProvider {
+
+  def create(id: UUID) = {
+    true
   }
 
-  def isReady(server: Server.Persisted): Option[Boolean] = {
-    server.role match {
-      case "is-ready-fail" => None
-      case "is-ready-nook" => Some(false)
-      case _               => Some(true)
-    }
+  def find(id: UUID): Option[Instance] = {
+    Some(Instance(new UUID(0,0), Status.Active))
+  }
+
+  def status(id: UUID): Option[Status.Value] = {
+    Some(Status.Active)
   }
 }

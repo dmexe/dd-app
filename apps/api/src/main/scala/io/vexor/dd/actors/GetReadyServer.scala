@@ -2,6 +2,7 @@ package io.vexor.dd.actors
 
 import akka.actor.{Actor, ActorLogging, Props}
 import io.vexor.dd.models.Server
+import io.vexor.dd.models.Server.Persisted
 
 class GetReadyServer(db : Server) extends Actor with ActorLogging {
 
@@ -30,8 +31,8 @@ class GetReadyServer(db : Server) extends Actor with ActorLogging {
   def receive = {
     case role : String =>
       log.info(s"Get ready server for role=$role")
-      val re = find(role) orElse create(role) orElse notFound(role)
-      sender() ! re.get
+      val re : Option[Persisted] = find(role) orElse create(role)
+      sender() ! re
   }
 }
 
