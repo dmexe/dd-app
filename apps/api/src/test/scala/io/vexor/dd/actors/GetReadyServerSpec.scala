@@ -6,7 +6,7 @@ import akka.pattern.ask
 import akka.testkit.{ImplicitSender, TestKitBase}
 import akka.util.Timeout
 import io.vexor.dd.AppEnv
-import io.vexor.dd.models.{Connector, Server}
+import io.vexor.dd.models.{Server}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 import scala.concurrent.Await
@@ -15,6 +15,7 @@ import scala.concurrent.duration.Duration
 class GetReadyServerSpec extends TestKitBase with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll with AppEnv {
 
+  /*
   lazy val session = Connector(databaseUrl)
   lazy val db      = Server(session)
 
@@ -51,4 +52,6 @@ class GetReadyServerSpec extends TestKitBase with ImplicitSender
       re1.asInstanceOf[Server.Persisted].id should be(re2.asInstanceOf[Server.Persisted].id)
     }
   }
+*/
 }
+
