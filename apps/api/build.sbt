@@ -2,13 +2,21 @@ name := """api"""
 
 version := "1.0"
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 val akkaV  = "2.3.11"
 val sprayV = "1.3.2"
 
 // enablePlugins(JDKPackagerPlugin)
 enablePlugins(JavaAppPackaging)
+
+javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-Xlint")
+
+initialize := {
+  val _ = initialize.value
+  if (sys.props("java.specification.version") != "1.8")
+    sys.error("Java 8 is required for this project.")
+}
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor"       % akkaV,
@@ -25,5 +33,6 @@ libraryDependencies ++= Seq(
 
   "com.datastax.cassandra" % "cassandra-driver-core" % "2.1.6"
 )
+
 
 fork in run := true

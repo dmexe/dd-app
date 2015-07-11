@@ -19,7 +19,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
       val actor = system.actorOf(DB.props)
       actor ! DB.Open(dbUrl)
       expectMsgPF(Duration(10, "seconds")) {
-        case DB.Ready(s) =>
+        case DB.Ok(s) =>
           session = Some(s)
       }
       assert(session.isEmpty == false)
@@ -31,7 +31,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
       val actor = system.actorOf(DB.props)
       actor ! DB.Open("notexists.host")
       expectMsgPF(Duration(10, "seconds")) {
-        case DB.OpenFailed(e: Throwable) =>
+        case DB.Bad(e: Throwable) =>
       }
     }
   }

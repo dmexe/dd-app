@@ -18,7 +18,7 @@ class Main(env: AppEnv) extends Actor with ActorLogging {
       val dbActor = context.actorOf(DB.props, "db")
       dbActor ! DB.Open(env.dbUrl)
       sender() ! Initialized
-    case DB.Ready(db) =>
+    case DB.Ok(db) =>
       val getReadyServerActor = context.actorOf(GetReadyServer.props(db), "get-ready-server")
     case unknown =>
       log.info(s"Receive unknown ${unknown}")

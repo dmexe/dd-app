@@ -10,8 +10,8 @@ object DB {
   type Session = com.datastax.driver.core.Session
 
   case class Open(url: String)
-  case class Ready(db: Session)
-  case class OpenFailed(e: Throwable)
+  case class Ok(db: Session)
+  case class Bad(e: Throwable)
   case class Close()
   case class Closed()
 
@@ -71,8 +71,8 @@ class DB extends Actor with ActorLogging {
   def receive = {
     case Open(url) =>
       val re = tryOpen(url) match {
-        case Success(s) => Ready(s.asInstanceOf[Session])
-        case Failure(e) => OpenFailed(e)
+        case Success(s) => Ok(s.asInstanceOf[Session])
+        case Failure(e) => Bad(e)
       }
       sender() ! re
 
