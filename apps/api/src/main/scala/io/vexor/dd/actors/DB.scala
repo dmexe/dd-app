@@ -1,10 +1,27 @@
-package io.vexor.dd.models
+package io.vexor.dd.actors
 
-import com.datastax.driver.core.{Cluster, QueryLogger, Session}
+import akka.actor.{Props, ActorLogging, Actor}
+import com.datastax.driver.core.{QueryLogger, Cluster}
 import io.vexor.dd.Utils._
 
-object Connector {
-  def apply(urlString: String) : Session = {
+object DB {
+  type Session = com.datastax.driver.core.Session
+
+  case class Open(url: String)
+  case class Ready(db: Session)
+  case class Close()
+  case class Closed()
+
+  def props : Props = Props(new DB)
+}
+
+class DB extends Actor with ActorLogging {
+
+  import DB._
+
+  var session = Option.empty[Session]
+
+  def open(urlString: String) : Session = {
     val u = new java.net.URI(urlString)
 
     val host     = Option(u.getHost) filterNot(_.isEmpty) getOrElse "localhost"
@@ -31,11 +48,17 @@ object Connector {
     session
   }
 
-  def close(sess: Session): Unit = {
-    sess.getCluster.close()
+  def close(): Unit = {
+    session.foreach(_.getCluster.close())
+    session = None
+  }
+
+  def receive = {
+    case Open(url) =>
+      sender() ! Ready(open(url))
+    case Close =>
+      close()
+      sender() ! Closed
   }
 }
 
-trait Connector {
-  def session : Session
-}

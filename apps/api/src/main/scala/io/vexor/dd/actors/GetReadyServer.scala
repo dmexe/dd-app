@@ -4,9 +4,11 @@ import akka.actor.{Actor, ActorLogging, Props}
 import io.vexor.dd.models.Server
 import io.vexor.dd.models.Server.Persisted
 
-class GetReadyServer(db : Server) extends Actor with ActorLogging {
+object GetReadyServer {
+  def props(s: DB.Session) : Props =  Props(new GetReadyServer(Server(s)))
+}
 
-  import GetReadyServer._
+class GetReadyServer(db: Server) extends Actor with ActorLogging {
 
   def create(role: String) = {
     val s = Server.New(role)
@@ -22,21 +24,10 @@ class GetReadyServer(db : Server) extends Actor with ActorLogging {
     }
   }
 
-  def notFound(role: String) = {
-    Some(NotFound()) map { v =>
-      log.warning(s"Not found role=$role") ; v
-    }
-  }
-
   def receive = {
     case role : String =>
       log.info(s"Get ready server for role=$role")
       val re : Option[Persisted] = find(role) orElse create(role)
       sender() ! re
   }
-}
-
-object GetReadyServer {
-  case class NotFound()
-  def props(db: Server) : Props = Props(new GetReadyServer(db))
 }

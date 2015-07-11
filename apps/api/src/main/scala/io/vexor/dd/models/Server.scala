@@ -5,7 +5,7 @@ import java.util.{Date, UUID}
 import com.datastax.driver.core.{Row, Session}
 import io.vexor.dd.Utils._
 
-abstract class Server extends Connector {
+class Server(session: Session) extends  {
 
   import Server.Status.Conversions._
   import Server.{New, Persisted, tableName}
@@ -116,7 +116,7 @@ object Server extends {
     updatedAt: Date
   ) extends Record
 
-  def apply(sess: Session): Server = {
-    new Server{ val session = sess }
+  def apply(session: Session): Server = {
+    new Server(session)
   }
 }
