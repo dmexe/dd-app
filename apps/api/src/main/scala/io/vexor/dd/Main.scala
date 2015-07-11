@@ -1,13 +1,12 @@
 package io.vexor.dd
 
-
 import akka.actor.ActorSystem
-import akka.io.IO
 import akka.pattern.ask
 import com.typesafe.config.ConfigFactory
-import spray.can.Http
+import io.vexor.dd.actors.MainActor
+import io.vexor.dd.models.DB
 
-import scala.util.Properties
+import scala.util.{Failure, Properties}
 
 trait AppEnv {
   implicit lazy val system = ActorSystem(s"dd-$appEnv", appConfig)
@@ -21,11 +20,19 @@ trait AppEnv {
 object Main extends App with AppEnv {
   implicit val timeout = Utils.timeoutSec(5)
 
-  val mainActor = system.actorOf(actors.Main.props(this), "main")
-  val httpActor = system.actorOf(handlers.Nodes.HttpHandler.props, "http")
+  val dbRe = new DB().open(dbUrl)
 
-  mainActor ? actors.Main.Init
-  IO(Http) ? Http.Bind(httpActor, interface = "localhost", port = 3000)
+  dbRe match {
+    case Failure(e) =>
+      println(e.toString)
+      System.exit(1)
+    case default =>
+  }
+
+  val db : DB.Session = dbRe.get
+  val mainActor = system.actorOf(MainActor.props(db), "main")
+
+  mainActor ? MainActor.Init
 
   system.awaitTermination()
 }

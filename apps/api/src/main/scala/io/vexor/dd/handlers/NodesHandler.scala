@@ -5,15 +5,17 @@ import java.util.{Date, UUID}
 import akka.actor.{Props, Actor, ActorLogging}
 import akka.pattern.ask
 import io.vexor.dd.Utils
-import io.vexor.dd.models.Server
+import io.vexor.dd.models.NodesTable
+import io.vexor.dd.actors.NodesActor
 import spray.http.StatusCodes.UnprocessableEntity
 import spray.routing.HttpService
 
-object Nodes {
+object NodesHandler {
 
   case class PutResponse(id: UUID, role: String, state: String, updatedAt: Date)
+
   object PutResponse {
-    def apply(s: Server.Persisted): PutResponse =
+    def apply(s: NodesTable.Persisted): PutResponse =
       PutResponse(s.id, s.role, s.status.toString, s.updatedAt)
   }
 
@@ -25,15 +27,15 @@ object Nodes {
     implicit val timeout = Utils.timeoutSec(5)
 
     val actorRefFactory = context
-    val worker = context.actorSelection("/user/main/get-ready-server")
+    val nodesActor = context.actorSelection("/user/main/nodes")
 
     def putAction(role: String) = {
       put {
-        onSuccess(worker ? role) {
-          case Some(s: Server.Persisted) =>
+        onSuccess(nodesActor ? NodesActor.Up(role)) {
+          case NodesActor.Found(s) =>
             complete(PutResponse(s))
-          case default =>
-            complete(UnprocessableEntity, default.toString)
+          case NodesActor.NotFound(r) =>
+            complete(UnprocessableEntity, s"Cannot found $r")
         }
       }
     }
@@ -49,8 +51,6 @@ object Nodes {
     def receive = runRoute(routes)
   }
 
-  object HttpHandler {
-    def props : Props = Props(new HttpHandler)
-  }
+  def props : Props = Props(new HttpHandler)
 }
 

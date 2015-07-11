@@ -5,10 +5,10 @@ import java.util.{Date, UUID}
 import com.datastax.driver.core.{Row, Session}
 import io.vexor.dd.Utils._
 
-class Server(session: Session) extends  {
+class NodesTable(session: Session) extends  {
 
-  import Server.Status.Conversions._
-  import Server.{New, Persisted, tableName}
+  import NodesTable.Status.Conversions._
+  import NodesTable.{New, Persisted, tableName}
 
   def up() {
     val sql = Seq(
@@ -71,7 +71,7 @@ class Server(session: Session) extends  {
   }
 }
 
-object Server extends {
+object NodesTable extends {
 
   val tableName = "servers"
 
@@ -116,7 +116,7 @@ object Server extends {
     updatedAt: Date
   ) extends Record
 
-  def apply(session: Session): Server = {
-    new Server(session)
+  def apply(session: Session): NodesTable = {
+    new NodesTable(session)
   }
 }

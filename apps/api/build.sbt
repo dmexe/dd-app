@@ -31,7 +31,8 @@ libraryDependencies ++= Seq(
   "ch.qos.logback"    %  "logback-classic"  % "1.1.3",
   "org.scalatest"     %% "scalatest"        % "2.2.4" % "test",
 
-  "com.datastax.cassandra" % "cassandra-driver-core" % "2.1.6"
+  "com.datastax.cassandra"   % "cassandra-driver-core"   % "2.1.6",
+  "com.myjeeva.digitalocean" % "digitalocean-api-client" % "2.1"
 )
 
 

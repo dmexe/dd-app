@@ -3,9 +3,9 @@ package io.vexor.dd.handlers
 import spray.json._
 
 trait NodesJsonProtocol extends DefaultJsonProtocol {
-  implicit object PutResponseJsonFormat extends RootJsonFormat[Nodes.PutResponse]
-  with WriteOnlyJsonProtocol[Nodes.PutResponse] {
-    def write(re: Nodes.PutResponse): JsValue = {
+  implicit object PutResponseJsonFormat extends RootJsonFormat[NodesHandler.PutResponse]
+  with WriteOnlyJsonProtocol[NodesHandler.PutResponse] {
+    def write(re: NodesHandler.PutResponse): JsValue = {
       JsObject(
         ("id",         JsString(re.id.toString)),
         ("role",       JsString(re.role)),
