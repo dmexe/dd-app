@@ -14,14 +14,14 @@ class NodesTable(session: Session) extends  {
     val sql = Seq(
       s"""
         CREATE TABLE IF NOT EXISTS $tableName (
-          id         TimeUUID Primary Key,
+          user_id    UUID,
           role       text,
+          version    int,
           status     int,
-          updated_at timestamp
-        )
-        """.squish,
-      s"""
-        CREATE INDEX IF NOT EXISTS ${tableName}_role ON $tableName (role)
+          cloud_id   text,
+          created_at timestamp,
+          PRIMARY KEY(user_id, role, version)
+        ) WITH CLUSTERING ORDER BY (role ASC, version DESC)
         """.squish
     )
     sql.map(session.execute)
@@ -32,18 +32,19 @@ class NodesTable(session: Session) extends  {
   }
 
   def fromRow(row: Row): Persisted = {
-    Persisted(
-      row.getUUID("id"),
-      row.getString("role"),
-      row.getInt("status").toValue,
-      row.getDate("updated_at")
-    )
+    val id        = row.getUUID("id")
+    val parentId  = row.getUUID("parent_id")
+    val cloudId   = row.getString("cloud_id")
+    val role      = row.getString("role")
+    val status    = row.getInt("status")
+    val createdAt = row.getDate("created_at")
+    Persisted(id, Option(parentId), Option(cloudId), role, status.toValue, createdAt)
   }
 
   def save(server: New): Unit = {
     val sql =
       s"""
-      INSERT INTO $tableName (id, role, status, updated_at)
+      INSERT INTO $tableName (id, role, status, created_at)
       VALUES (now(), ?, 0, dateof(now()))
       """.squish
     session.execute(sql, server.role)
@@ -73,7 +74,7 @@ class NodesTable(session: Session) extends  {
 
 object NodesTable extends {
 
-  val tableName = "servers"
+  val tableName = "nodes"
 
   object Status extends Enumeration {
     val New, Pending, Active, Frozen, Finished, Broken = Value
@@ -111,9 +112,11 @@ object NodesTable extends {
 
   case class Persisted (
     id:        UUID,
+    parentId:  Option[UUID],
+    cloudId:   Option[String],
     role:      String,
     status:    Status.Value,
-    updatedAt: Date
+    createdAt: Date
   ) extends Record
 
   def apply(session: Session): NodesTable = {
