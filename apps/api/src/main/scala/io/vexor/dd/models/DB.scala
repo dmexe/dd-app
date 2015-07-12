@@ -9,13 +9,13 @@ object DB {
   type Session = com.datastax.driver.core.Session
 }
 
-class DB {
+class DB (url: String) {
 
   import DB._
 
   var session = Option.empty[Session]
 
-  def open(url: String): Try[Session] = {
+  def open(): Try[Session] = {
     close()
     val re = Try(openSession(url))
     if(re.isSuccess) {

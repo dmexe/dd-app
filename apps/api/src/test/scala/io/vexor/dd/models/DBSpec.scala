@@ -7,8 +7,8 @@ class DBSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with Test
 
   "A DB actor" must {
     "successfully open and close session" in {
-      val db = new DB()
-      db.open(dbUrl)
+      val db = new DB(dbUrl)
+      db.open()
 
       assert(db.isOpen)
 
@@ -16,8 +16,8 @@ class DBSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with Test
     }
 
     "fail to open session" in {
-      val db = new DB()
-      db.open("bad.url")
+      val db = new DB("bad.url")
+      db.open()
 
       assert(db.isOpen == false)
     }

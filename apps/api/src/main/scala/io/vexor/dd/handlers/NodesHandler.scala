@@ -6,8 +6,7 @@ import akka.actor.{Props, Actor, ActorLogging}
 import akka.pattern.ask
 import io.vexor.dd.Utils
 import io.vexor.dd.models.NodesTable
-import io.vexor.dd.actors.NodesActor
-import spray.http.StatusCodes.UnprocessableEntity
+import spray.http.StatusCodes.NotFound
 import spray.routing.HttpService
 
 object NodesHandler {
@@ -31,12 +30,15 @@ object NodesHandler {
 
     def putAction(role: String) = {
       put {
+        complete("OK")
+        /*
         onSuccess(nodesActor ? NodesActor.Up(role)) {
           case NodesActor.Found(s) =>
             complete(PutResponse(s))
           case NodesActor.NotFound(r) =>
-            complete(UnprocessableEntity, s"Cannot found $r")
+            complete(NotFound, s"Cannot found $r")
         }
+        */
       }
     }
 

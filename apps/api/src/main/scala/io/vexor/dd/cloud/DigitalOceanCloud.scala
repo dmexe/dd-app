@@ -9,34 +9,31 @@ import scala.util.Try
 import AbstractCloud.Status
 import collection.JavaConversions._
 
-object DigitalOceanCloud {
+class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int, size: String) extends AbstractCloud {
+  import DigitalOceanCloud._
 
-  case class Instance(id: String, role: String, status: Status.Value) extends AbstractCloud.Instance
+  lazy val api = new DigitalOceanClient(token)
 
-  class Provider(token: String, region: String, imageId: Int, keyId: Int, size: String) extends AbstractCloud.Provider {
+  def create(role: String) : Try[Instance] = {
+    val newDroplet = new Droplet()
+    newDroplet.setName(s"$role.$region.docker")
+    newDroplet.setSize(size)
+    newDroplet.setRegion(new Region(region))
+    newDroplet.setImage(new Image(imageId))
 
-    lazy val api = new DigitalOceanClient(token)
+    val keys = List[Key](new Key(keyId))
+    newDroplet.setKeys(keys)
 
-    def create(role: String) : Try[Instance] = {
-      val newDroplet = new Droplet()
-      newDroplet.setName(s"$role.$region.docker")
-      newDroplet.setSize(size)
-      newDroplet.setRegion(new Region(region))
-      newDroplet.setImage(new Image(imageId))
-
-      val keys = List[Key](new Key(keyId))
-      newDroplet.setKeys(keys)
-
-      Try(api.createDroplet(newDroplet)) map { d =>
-        Instance(d.getId.toString, role, Status.Pending)
-      }
-    }
-
-    def find(id: UUID) : Option[Instance] = {
-      None
+    Try(api.createDroplet(newDroplet)) map { d =>
+      Instance(d.getId.toString, role, Status.Pending)
     }
   }
 
-  def apply(token: String, region: String, imageId: Int, keyId: Int, size: String) : Provider =
-    new Provider(token, region, imageId, keyId, size)
+  def find(id: UUID) : Option[Instance] = {
+    None
+  }
+}
+
+object DigitalOceanCloud {
+  case class Instance(id: String, role: String, status: Status.Value) extends AbstractCloud.Instance
 }
