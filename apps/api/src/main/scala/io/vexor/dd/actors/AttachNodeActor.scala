@@ -1,5 +1,7 @@
 package io.vexor.dd.actors
 
+import java.util.UUID
+
 import akka.actor.{Props, ActorLogging, Actor}
 import io.vexor.dd.models.{DB, NodesTable}
 import io.vexor.dd.cloud.AbstractCloud
@@ -11,20 +13,19 @@ class AttachNodeActor(db: NodesTable, cloud: AbstractCloud) extends Actor with A
 
   import AttachNodeActor._
 
-  def create(role: String) = {
-    val s = NodesTable.New(role)
+  def create(userId: UUID, role: String) = {
+    val s = NodesTable.New(userId, role)
     db.save(s)
-    db.oneByRole(role)
   }
 
-  def find(role: String) = {
-    db.oneByRole(role)
+  def find(userId: UUID, role: String) = {
+    db.last(userId, role)
   }
 
-  def attach(role: String): AttachResult = {
+  def attach(userId: UUID, role: String): AttachResult = {
     val re : Try[NodesTable.Persisted] =
       for {
-        nodeRecord   <- find(role) orElse create(role) toTry(new NotFoundError(role))
+        nodeRecord   <- find(userId, role) orElse create(userId, role) toTry(new NotFoundError(userId, role))
         nodeInstance <- cloud.create(role)
       } yield nodeRecord
 
@@ -35,8 +36,8 @@ class AttachNodeActor(db: NodesTable, cloud: AbstractCloud) extends Actor with A
   }
 
   def receive = {
-    case Attach(role) =>
-      sender() ! attach(role)
+    case Attach(userId, role) =>
+      sender() ! attach(userId, role)
   }
 }
 
@@ -44,9 +45,10 @@ object AttachNodeActor {
   def props(db: DB.Session, cloud: AbstractCloud) : Props =
     Props(new AttachNodeActor(new NodesTable(db), cloud))
 
-  class NotFoundError(role: String) extends Exception(s"Cannot found node with role=${role}")
+  class NotFoundError(userId: UUID, role: String)
+    extends RuntimeException(s"Cannot found node with user_id=${userId} and role=${role}")
 
-  case class Attach(role: String)
+  case class Attach(userId: UUID, role: String)
   sealed trait AttachResult
   case class Attached(node: NodesTable.Persisted) extends AttachResult
   case class AttachFailed(e: Throwable) extends AttachResult

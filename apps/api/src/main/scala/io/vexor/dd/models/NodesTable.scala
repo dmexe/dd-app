@@ -7,8 +7,8 @@ import io.vexor.dd.Utils._
 
 class NodesTable(session: Session) extends  {
 
-  import NodesTable.Status.Conversions._
-  import NodesTable.{New, Persisted, tableName}
+  import NodesTable.Status.Conversions.{ToInt, ToValue}
+  import NodesTable._
 
   def up() {
     val sql = Seq(
@@ -32,52 +32,94 @@ class NodesTable(session: Session) extends  {
   }
 
   def fromRow(row: Row): Persisted = {
-    val id        = row.getUUID("id")
-    val parentId  = row.getUUID("parent_id")
-    val cloudId   = row.getString("cloud_id")
+    val userId    = row.getUUID("user_id")
     val role      = row.getString("role")
+    val version   = row.getInt("version")
     val status    = row.getInt("status")
+    val cloudId   = row.getString("cloud_id")
     val createdAt = row.getDate("created_at")
-    Persisted(id, Option(parentId), Option(cloudId), role, status.toValue, createdAt)
+    Persisted(userId, role, version, status.toValue, Option(cloudId), createdAt)
   }
 
-  def save(server: New): Unit = {
-    val sql =
-      s"""
-      INSERT INTO $tableName (id, role, status, created_at)
-      VALUES (now(), ?, 0, dateof(now()))
-      """.squish
-    session.execute(sql, server.role)
+  def nextVersion(r: Record): Int = {
+    val sql = s"SELECT version FROM ${tableName} WHERE user_id=? AND role=? ${orderBy} LIMIT 1"
+    val ver = session.execute(sql, r.userId, r.role).one().getInt("version")
+    Option(ver).getOrElse(0) + 1
   }
 
-  def save(server: Persisted): Unit = {
-    val sql =
-      s"""
-      UPDATE $tableName SET
-        role = ?,
-        status = ?,
-        updated_at = dateof(now())
-      WHERE id = ?
-      """.squish
-    session.execute(sql, server.role, server.status.toInt, server.id)
-  }
+  def save(rec: New): Option[Persisted] = {
+    val version = nextVersion(rec)
 
-  def oneByRole(role: String): Option[Persisted] = {
-    val sql =
-      s"""
-      SELECT * FROM $tableName WHERE role = ? LIMIT 1
-      """.squish
-    val re = session.execute(sql, role).one()
+    session.execute(
+      s"INSERT INTO $tableName (user_id, role, version, status, created_at) VALUES (?, ?, ?, 0, dateOf(now()))",
+      rec.userId,
+      rec.role,
+      version: Integer
+    )
+
+    val re = session.execute(
+      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? AND version=?",
+      rec.userId,
+      rec.role,
+      version: Integer
+    ).one()
+
     Option(re).map(fromRow)
+  }
+
+  def save(prev: Persisted, status: Status.Value = Status._Undefined, cloudId: String = ""): Option[Persisted] = {
+    val version = prev.version + 1
+
+    val newStatus =
+      if(status == Status._Undefined) {
+        prev.status
+      } else {
+        status
+      }
+
+    val newCloudId =
+      if(cloudId == "") {
+        prev.cloudId
+      } else {
+        cloudId
+      }
+
+    session.execute(
+      s"INSERT INTO $tableName (user_id, role, version, status, cloudId, created_at) VALUES (?, ?, ?, 0, dateOf(now()))",
+      prev.userId,
+      prev.role,
+      version: Integer,
+      newStatus.toInt,
+      newCloudId
+    )
+
+    val re = session.execute(
+      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? AND version=?",
+      prev.userId,
+      prev.role,
+      version: Integer
+    ).one()
+
+    Option(re).map(fromRow)
+  }
+
+  def last(userId: UUID, role: String): Option[Persisted] = {
+    val rec = session.execute(
+      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? ${orderBy} LIMIT 1",
+      userId,
+      role
+    ).one()
+    Option(rec).map(fromRow)
   }
 }
 
 object NodesTable extends {
 
   val tableName = "nodes"
+  val orderBy   = "ORDER BY role ASC, version DESC"
 
   object Status extends Enumeration {
-    val New, Pending, Active, Frozen, Finished, Broken = Value
+    val New, Pending, Active, Frozen, Finished, Broken, _Undefined = Value
 
     object Conversions {
       implicit class ToInt(v : Value) {
@@ -104,18 +146,22 @@ object NodesTable extends {
     }
   }
 
-  abstract class Record
+  trait Record {
+    val userId: UUID
+    val role:   String
+  }
 
   case class New(
+    userId:    UUID,
     role:      String
   ) extends Record
 
   case class Persisted (
-    id:        UUID,
-    parentId:  Option[UUID],
-    cloudId:   Option[String],
+    userId:    UUID,
     role:      String,
+    version:   Int,
     status:    Status.Value,
+    cloudId:   Option[String],
     createdAt: Date
   ) extends Record
 

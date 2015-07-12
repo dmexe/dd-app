@@ -7,10 +7,11 @@ trait NodesJsonProtocol extends DefaultJsonProtocol {
   with WriteOnlyJsonProtocol[NodesHandler.PutResponse] {
     def write(re: NodesHandler.PutResponse): JsValue = {
       JsObject(
-        ("id",         JsString(re.id.toString)),
+        ("userId",     JsString(re.userId.toString)),
         ("role",       JsString(re.role)),
+        ("version",    JsNumber(re.version)),
         ("state",      JsString(re.state)),
-        ("updated_at", JsString(re.updatedAt.toString))
+        ("created_at", JsString(re.createdAt.toString))
       )
     }
   }

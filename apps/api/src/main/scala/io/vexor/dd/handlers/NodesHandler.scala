@@ -11,11 +11,11 @@ import spray.routing.HttpService
 
 object NodesHandler {
 
-  case class PutResponse(id: UUID, role: String, state: String, updatedAt: Date)
+  case class PutResponse(userId: UUID, role: String, version: Int, state: String, createdAt: Date)
 
   object PutResponse {
-    def apply(s: NodesTable.Persisted): PutResponse =
-      PutResponse(s.id, s.role, s.status.toString, s.updatedAt)
+    def apply(rec: NodesTable.Persisted): PutResponse =
+      PutResponse(rec.userId, rec.role, rec.version, rec.status.toString, rec.createdAt)
   }
 
   class HttpHandler extends Actor with ActorLogging with HttpService with NodesJsonProtocol {
