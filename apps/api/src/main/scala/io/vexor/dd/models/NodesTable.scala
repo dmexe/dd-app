@@ -2,13 +2,15 @@ package io.vexor.dd.models
 
 import java.util.{Date, UUID}
 
+import scala.collection.JavaConversions._
+
 import com.datastax.driver.core.{Row, Session}
 import io.vexor.dd.Utils._
 
-class NodesTable(session: Session) extends  {
+class NodesTable(session: Session, tableName: String) extends  {
 
-  import NodesTable.Status.Conversions.{ToInt, ToValue}
   import NodesTable._
+  import NodesTable.Status.Conversions.{ToInt, ToValue}
 
   def up() {
     val sql = Seq(
@@ -42,9 +44,9 @@ class NodesTable(session: Session) extends  {
   }
 
   def nextVersion(r: Record): Int = {
-    val sql = s"SELECT version FROM ${tableName} WHERE user_id=? AND role=? ${orderBy} LIMIT 1"
-    val ver = session.execute(sql, r.userId, r.role).one().getInt("version")
-    Option(ver).getOrElse(0) + 1
+    val sql = s"SELECT version FROM ${tableName} WHERE user_id=? AND role=? ${ORDER_BY} LIMIT 1"
+    val ver = session.execute(sql, r.userId, r.role).one()
+    Option(ver).map(_.getInt("version")).getOrElse(0) + 1
   }
 
   def save(rec: New): Option[Persisted] = {
@@ -64,14 +66,23 @@ class NodesTable(session: Session) extends  {
       version: Integer
     ).one()
 
-    Option(re).map(fromRow)
+    Option(re) map fromRow
   }
 
-  def save(prev: Persisted, status: Status.Value = Status._Undefined, cloudId: String = ""): Option[Persisted] = {
+  def allVersionsFor(userId: UUID, role: String): List[Persisted] = {
+    val re = session.execute(
+      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? ${ORDER_BY}",
+      userId,
+      role
+    ).all()
+    re.toList map fromRow
+  }
+
+  def save(prev: Persisted, status: Status.Value = Status.Undefined, cloudId: String = ""): Option[Persisted] = {
     val version = prev.version + 1
 
     val newStatus =
-      if(status == Status._Undefined) {
+      if(status == Status.Undefined) {
         prev.status
       } else {
         status
@@ -79,13 +90,13 @@ class NodesTable(session: Session) extends  {
 
     val newCloudId =
       if(cloudId == "") {
-        prev.cloudId
+        prev.cloudId.orNull
       } else {
         cloudId
       }
 
     session.execute(
-      s"INSERT INTO $tableName (user_id, role, version, status, cloudId, created_at) VALUES (?, ?, ?, 0, dateOf(now()))",
+      s"INSERT INTO $tableName (user_id, role, version, status, cloud_id, created_at) VALUES (?, ?, ?, ?, ?, dateOf(now()))",
       prev.userId,
       prev.role,
       version: Integer,
@@ -105,7 +116,7 @@ class NodesTable(session: Session) extends  {
 
   def last(userId: UUID, role: String): Option[Persisted] = {
     val rec = session.execute(
-      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? ${orderBy} LIMIT 1",
+      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? ${ORDER_BY} LIMIT 1",
       userId,
       role
     ).one()
@@ -115,11 +126,11 @@ class NodesTable(session: Session) extends  {
 
 object NodesTable extends {
 
-  val tableName = "nodes"
-  val orderBy   = "ORDER BY role ASC, version DESC"
+  val TABLE_NAME = "nodes"
+  val ORDER_BY   = "ORDER BY role ASC, version DESC"
 
   object Status extends Enumeration {
-    val New, Pending, Active, Frozen, Finished, Broken, _Undefined = Value
+    val New, Pending, Active, Frozen, Finished, Broken, Undefined = Value
 
     object Conversions {
       implicit class ToInt(v : Value) {
@@ -166,6 +177,6 @@ object NodesTable extends {
   ) extends Record
 
   def apply(session: Session): NodesTable = {
-    new NodesTable(session)
+    new NodesTable(session, tableName = TABLE_NAME)
   }
 }
