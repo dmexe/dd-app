@@ -5,14 +5,17 @@ import java.util.{Date, UUID}
 import scala.collection.JavaConversions._
 
 import com.datastax.driver.core.{Row, Session}
-import io.vexor.dd.Utils._
+import io.vexor.dd.Utils.StringSquish
 
-class NodesTable(session: Session, tableName: String) extends  {
+class NodesTable(db: Session, tableName: String) extends  {
 
   import NodesTable._
   import NodesTable.Status.Conversions.{ToInt, ToValue}
 
+  val lastNodes = new LastNodesTable(db, s"last_$tableName")
+
   def up() {
+    lastNodes.up()
     val sql = Seq(
       s"""
         CREATE TABLE IF NOT EXISTS $tableName (
@@ -22,18 +25,19 @@ class NodesTable(session: Session, tableName: String) extends  {
           status     int,
           cloud_id   text,
           created_at timestamp,
-          PRIMARY KEY(user_id, role, version)
-        ) WITH CLUSTERING ORDER BY (role ASC, version DESC)
+          PRIMARY KEY((user_id, role), version)
+        ) WITH CLUSTERING ORDER BY (version DESC)
         """.squish
     )
-    sql.map(session.execute)
+    sql.map(db.execute)
   }
 
   def down() {
-    session.execute(s"DROP TABLE IF EXISTS $tableName")
+    db.execute(s"DROP TABLE IF EXISTS $tableName")
+    lastNodes.down()
   }
 
-  def fromRow(row: Row): Persisted = {
+  private def fromRow(row: Row): Persisted = {
     val userId    = row.getUUID("user_id")
     val role      = row.getString("role")
     val version   = row.getInt("version")
@@ -43,39 +47,30 @@ class NodesTable(session: Session, tableName: String) extends  {
     Persisted(userId, role, version, status.toValue, Option(cloudId), createdAt)
   }
 
+  private def saveInLastNodes(rec:Persisted) = {
+    lastNodes.save(rec)
+  }
+
   def nextVersion(r: Record): Int = {
-    val sql = s"SELECT version FROM ${tableName} WHERE user_id=? AND role=? ${ORDER_BY} LIMIT 1"
-    val ver = session.execute(sql, r.userId, r.role).one()
+    val sql = s"SELECT version FROM $tableName WHERE user_id=? AND role=? $ORDER_BY LIMIT 1"
+    val ver = db.execute(sql, r.userId, r.role).one()
     Option(ver).map(_.getInt("version")).getOrElse(0) + 1
   }
 
   def save(rec: New): Option[Persisted] = {
     val version = nextVersion(rec)
 
-    session.execute(
+    db.execute(
       s"INSERT INTO $tableName (user_id, role, version, status, created_at) VALUES (?, ?, ?, 0, dateOf(now()))",
       rec.userId,
       rec.role,
       version: Integer
     )
 
-    val re = session.execute(
-      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? AND version=?",
-      rec.userId,
-      rec.role,
-      version: Integer
-    ).one()
-
-    Option(re) map fromRow
-  }
-
-  def allVersionsFor(userId: UUID, role: String): List[Persisted] = {
-    val re = session.execute(
-      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? ${ORDER_BY}",
-      userId,
-      role
-    ).all()
-    re.toList map fromRow
+    for {
+      maybeRec  <- one(rec.userId, rec.role, version)
+      maybeLast <- saveInLastNodes(maybeRec)
+    } yield maybeRec
   }
 
   def save(prev: Persisted, status: Status.Value = Status.Undefined, cloudId: String = ""): Option[Persisted] = {
@@ -95,7 +90,7 @@ class NodesTable(session: Session, tableName: String) extends  {
         cloudId
       }
 
-    session.execute(
+    db.execute(
       s"INSERT INTO $tableName (user_id, role, version, status, cloud_id, created_at) VALUES (?, ?, ?, ?, ?, dateOf(now()))",
       prev.userId,
       prev.role,
@@ -104,30 +99,46 @@ class NodesTable(session: Session, tableName: String) extends  {
       newCloudId
     )
 
-    val re = session.execute(
-      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? AND version=?",
-      prev.userId,
-      prev.role,
+    for {
+      maybeRec  <- one(prev.userId, prev.role, version)
+      maybeLast <- saveInLastNodes(maybeRec)
+    } yield maybeRec
+  }
+
+  def one(userId: UUID, role: String, version: Int): Option[Persisted] = {
+    val row = db.execute(
+      s"SELECT * FROM $tableName WHERE user_id=? AND role=? AND version=?",
+      userId,
+      role,
       version: Integer
     ).one()
-
-    Option(re).map(fromRow)
+    Option(row) map fromRow
   }
 
   def last(userId: UUID, role: String): Option[Persisted] = {
-    val rec = session.execute(
-      s"SELECT * FROM ${tableName} WHERE user_id=? AND role=? ${ORDER_BY} LIMIT 1",
+    val rec = db.execute(
+      s"SELECT * FROM $tableName WHERE user_id=? AND role=? $ORDER_BY LIMIT 1",
       userId,
       role
     ).one()
     Option(rec).map(fromRow)
   }
+
+  def allVersionsFor(userId: UUID, role: String): List[Persisted] = {
+    val re = db.execute(
+      s"SELECT * FROM $tableName WHERE user_id=? AND role=? $ORDER_BY",
+      userId,
+      role
+    ).all()
+    re.toList map fromRow
+  }
+
 }
 
 object NodesTable extends {
 
   val TABLE_NAME = "nodes"
-  val ORDER_BY   = "ORDER BY role ASC, version DESC"
+  val ORDER_BY   = "ORDER BY version DESC"
 
   object Status extends Enumeration {
     val New, Pending, Active, Frozen, Finished, Broken, Undefined = Value
