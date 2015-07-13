@@ -22,6 +22,20 @@ class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll w
   }
 
   "A NodeTable" must {
+    "find all new nodes" in {
+      val role = "new-nodes"
+      val n0 = NodesTable.New(userId, role)
+
+      val n1 = db.save(n0).get
+      assert(Seq(n1) == db.allNew())
+
+      val n2 = db.save(n1, status = Status.Active).get
+      assert(db.allNew().isEmpty)
+
+      val n3 = db.save(n2, status = Status.New).get
+      assert(Seq(n3) == db.allNew())
+    }
+
     "successfuly create and update records" in {
       val role   = "default"
       val nRec = NodesTable.New(userId, role)

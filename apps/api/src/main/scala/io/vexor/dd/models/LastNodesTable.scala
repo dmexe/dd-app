@@ -1,10 +1,13 @@
 package io.vexor.dd.models
 
 import java.util.{UUID,Date}
+import scala.collection.JavaConversions._
 import io.vexor.dd.Utils.StringSquish
-import com.datastax.driver.core.{Row}
+import com.datastax.driver.core.Row
 import io.vexor.dd.models.NodesTable.Status
 import io.vexor.dd.models.NodesTable.Status.Conversions.{ToInt,ToValue}
+
+import scala.collection.JavaConverters._
 
 class LastNodesTable(db:DB.Session, tableName:String) {
 
@@ -21,7 +24,8 @@ class LastNodesTable(db:DB.Session, tableName:String) {
           updated_at timestamp,
           PRIMARY KEY((user_id, role))
         )
-        """.squish
+        """.squish,
+      s"CREATE INDEX IF NOT EXISTS ${tableName}_status_idx ON $tableName (status)"
     )
     sql.map(db.execute)
   }
@@ -39,13 +43,21 @@ class LastNodesTable(db:DB.Session, tableName:String) {
     Persisted(userId, role, version, status.toValue, updatedAt)
   }
 
-  def findOne(userId:UUID, role:String): Option[Persisted] = {
+  def one(userId:UUID, role:String): Option[Persisted] = {
     val re = db.execute(
       s"SELECT * FROM $tableName WHERE user_id=? AND role=? LIMIT 1",
       userId,
       role
     ).one()
     Option(re) map fromRow
+  }
+
+  def allByStatus(statuses: Seq[Status.Value]): Seq[Persisted] = {
+    val list = statuses map (_.toInt) mkString ","
+    val re = db.execute(
+      s"SELECT * FROM $tableName WHERE status IN ($list)"
+    ).all()
+    re.toSeq map fromRow
   }
 
   def save(rec:NodesTable.Persisted): Option[Persisted] = {
@@ -57,7 +69,7 @@ class LastNodesTable(db:DB.Session, tableName:String) {
       rec.status.toInt,
       rec.createdAt
     )
-    findOne(rec.userId, rec.role)
+    one(rec.userId, rec.role)
   }
 }
 

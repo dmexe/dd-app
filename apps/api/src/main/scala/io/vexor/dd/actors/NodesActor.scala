@@ -18,10 +18,6 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
     db.save(s)
   }
 
-  def findLastNode(userId: UUID, role: String) = {
-    db.last(userId, role)
-  }
-
   def nodeNotFoundError(userId: UUID, role: String) = {
     new NodeNotFoundError(userId, role)
   }
@@ -48,7 +44,7 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
   def upNodeAction(userId: UUID, role: String): UpResult = {
     val re : Try[NodesTable.Persisted] =
       for {
-        parentRecord <- findLastNode(userId, role) orElse createNewNode(userId, role) toTry nodeNotFoundError(userId, role)
+        parentRecord <- db.last(userId, role) orElse createNewNode(userId, role) toTry nodeNotFoundError(userId, role)
         newRecord    <- maybeUpdateNewNodeStatus(parentRecord)
       } yield newRecord
 
@@ -59,7 +55,7 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
   }
 
   def getNodeAction(userId: UUID, role: String): GetResult = {
-    val re = findLastNode(userId, role)
+    val re = db.last(userId, role)
     re match {
       case Some(n) => GetSuccess(n)
       case None    => GetFailure(nodeNotFoundError(userId, role))

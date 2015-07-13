@@ -115,13 +115,20 @@ class NodesTable(db: Session, tableName: String) extends  {
     Option(row) map fromRow
   }
 
-  def last(userId: UUID, role: String): Option[Persisted] = {
-    val rec = db.execute(
+  def one(userId: UUID, role: String): Option[Persisted] = {
+    val row = db.execute(
       s"SELECT * FROM $tableName WHERE user_id=? AND role=? $ORDER_BY LIMIT 1",
       userId,
       role
     ).one()
-    Option(rec).map(fromRow)
+    Option(row) map fromRow
+  }
+
+  def last(userId: UUID, role: String): Option[Persisted] = {
+    for {
+      lastRec <- lastNodes.one(userId, role)
+      rec     <- one(userId, role, lastRec.version)
+    } yield rec
   }
 
   def allVersionsFor(userId: UUID, role: String): List[Persisted] = {
@@ -133,6 +140,12 @@ class NodesTable(db: Session, tableName: String) extends  {
     re.toList map fromRow
   }
 
+  def allNew() : Seq[Persisted] = {
+    val re = lastNodes.allByStatus(Seq(Status.New))
+    re flatMap { l =>
+      one(l.userId, l.role, l.version)
+    }
+  }
 }
 
 object NodesTable extends {
