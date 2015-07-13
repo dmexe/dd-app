@@ -2,7 +2,7 @@ package io.vexor.dd
 
 import akka.pattern.ask
 import io.vexor.dd.actors.MainActor
-import io.vexor.dd.models.DB
+import io.vexor.dd.models.{NodesTable, DB}
 import io.vexor.dd.cloud.{DigitalOceanCloud, AbstractCloud}
 
 import scala.util.Failure
@@ -23,6 +23,12 @@ object Main extends App with AppEnv {
     db.get
   }
 
+  def initNodesTable(db: DB.Session) = {
+    val nodesTable = NodesTable(db)
+    nodesTable.up()
+    nodesTable
+  }
+
   def initCloud() : AbstractCloud = {
     new DigitalOceanCloud(
       appConfig.getString("cloud.digitalocean.token"),
@@ -33,10 +39,13 @@ object Main extends App with AppEnv {
     )
   }
 
-  val db    = initDb()
-  val cloud = initCloud()
+  def initMainActor() = {
+    val db         = initDb()
+    val nodesTable = initNodesTable(db)
+    system.actorOf(MainActor.props(nodesTable), "main")
+  }
 
-  val mainActor = system.actorOf(MainActor.props(db, cloud), "main")
+  val mainActor = initMainActor()
 
   mainActor ? MainActor.Init
 

@@ -45,7 +45,7 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
     }
   }
 
-  def upNode(userId: UUID, role: String): UpResult = {
+  def upNodeAction(userId: UUID, role: String): UpResult = {
     val re : Try[NodesTable.Persisted] =
       for {
         parentRecord <- findLastNode(userId, role) orElse createNewNode(userId, role) toTry nodeNotFoundError(userId, role)
@@ -58,9 +58,19 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
     }
   }
 
+  def getNodeAction(userId: UUID, role: String): GetResult = {
+    val re = findLastNode(userId, role)
+    re match {
+      case Some(n) => GetSuccess(n)
+      case None    => GetFailure(nodeNotFoundError(userId, role))
+    }
+  }
+
   def receive = {
     case Up(userId, role) =>
-      sender() ! upNode(userId, role)
+      sender() ! upNodeAction(userId, role)
+    case Get(userId, role) =>
+      sender() ! getNodeAction(userId, role)
   }
 }
 
@@ -77,4 +87,9 @@ object NodesActor {
   sealed trait UpResult
   case class UpSuccess(node: NodesTable.Persisted) extends UpResult
   case class UpFailure(e: Throwable) extends UpResult
+
+  case class Get(userId: UUID, role: String)
+  sealed trait GetResult
+  case class GetSuccess(node: NodesTable.Persisted) extends GetResult
+  case class GetFailure(e: Throwable) extends GetResult
 }

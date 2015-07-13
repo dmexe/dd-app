@@ -5,8 +5,9 @@ import java.util.{Date, UUID}
 import akka.actor.{Props, Actor, ActorLogging}
 import akka.pattern.ask
 import io.vexor.dd.Utils
+import io.vexor.dd.actors.NodesActor
 import io.vexor.dd.models.NodesTable
-import spray.http.StatusCodes.NotFound
+import spray.http.StatusCodes.{UnprocessableEntity, NotFound}
 import spray.routing.HttpService
 
 object NodesHandler {
@@ -26,26 +27,35 @@ object NodesHandler {
     implicit val timeout = Utils.timeoutSec(5)
 
     val actorRefFactory = context
-    val nodesActor = context.actorSelection("/user/main/nodes")
+    val nodesActor      = context.actorSelection("/user/main/nodes")
+    val userId          = new UUID(0,0)
 
     def putAction(role: String) = {
       put {
-        complete("OK")
-        /*
-        onSuccess(nodesActor ? NodesActor.Up(role)) {
-          case NodesActor.Found(s) =>
-            complete(PutResponse(s))
-          case NodesActor.NotFound(r) =>
-            complete(NotFound, s"Cannot found $r")
+        onSuccess(nodesActor ? NodesActor.Up(userId, role)) {
+          case NodesActor.UpSuccess(node) =>
+            complete(PutResponse(node))
+          case NodesActor.UpFailure(e) =>
+            complete(UnprocessableEntity, e.getMessage)
         }
-        */
+      }
+    }
+
+    def getAction(role: String) = {
+      get {
+        onSuccess(nodesActor ? NodesActor.Get(userId, role)) {
+          case NodesActor.GetSuccess(node) =>
+            complete(PutResponse(node))
+          case NodesActor.GetFailure(e) =>
+            complete(NotFound, e.getMessage)
+        }
       }
     }
 
     def routes = pathPrefix("api" / "v1") {
       logRequestResponse("nodes") {
         path("nodes" / Segment) { role =>
-          putAction(role)
+          putAction(role) ~ getAction(role)
         }
       }
     }
