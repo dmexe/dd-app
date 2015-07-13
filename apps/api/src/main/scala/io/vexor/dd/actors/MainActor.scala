@@ -27,6 +27,8 @@ class MainActor(nodesTable: NodesTable) extends Actor with ActorLogging {
   val nodesActor = context.actorOf(NodesActor.props(nodesTable),    "nodes")
   val httpActor  = context.actorOf(NodesHandler.props,              "http")
 
+  val watchNewNodesActor = context.actorOf(WatchNewNodesActor.props(nodesActor))
+
   def receive = {
     case Init =>
       IO(Http)(context.system) ? Http.Bind(httpActor, interface = "localhost", port = 3000)

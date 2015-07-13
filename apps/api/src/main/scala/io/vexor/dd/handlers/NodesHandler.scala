@@ -32,10 +32,10 @@ object NodesHandler {
 
     def putAction(role: String) = {
       put {
-        onSuccess(nodesActor ? NodesActor.Up(userId, role)) {
-          case NodesActor.UpSuccess(node) =>
+        onSuccess(nodesActor ? NodesActor.UpNode(userId, role)) {
+          case NodesActor.UpNodeSuccess(node) =>
             complete(PutResponse(node))
-          case NodesActor.UpFailure(e) =>
+          case NodesActor.UpNodeFailure(e) =>
             complete(UnprocessableEntity, e.getMessage)
         }
       }
@@ -43,10 +43,10 @@ object NodesHandler {
 
     def getAction(role: String) = {
       get {
-        onSuccess(nodesActor ? NodesActor.Get(userId, role)) {
-          case NodesActor.GetSuccess(node) =>
+        onSuccess(nodesActor ? NodesActor.GetNode(userId, role)) {
+          case NodesActor.GetNodeSuccess(node) =>
             complete(PutResponse(node))
-          case NodesActor.GetFailure(e) =>
+          case NodesActor.GetNodeFailure(e) =>
             complete(NotFound, e.getMessage)
         }
       }

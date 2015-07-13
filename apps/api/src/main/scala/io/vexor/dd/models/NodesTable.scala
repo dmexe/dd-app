@@ -140,7 +140,7 @@ class NodesTable(db: Session, tableName: String) extends  {
     re.toList map fromRow
   }
 
-  def allNew() : Seq[Persisted] = {
+  def allNew() : List[Persisted] = {
     val re = lastNodes.allByStatus(Seq(Status.New))
     re flatMap { l =>
       one(l.userId, l.role, l.version)

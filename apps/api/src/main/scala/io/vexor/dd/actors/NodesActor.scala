@@ -13,6 +13,10 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
 
   import NodesActor._
 
+  //
+  // Helper methods
+  //
+
   def createNewNode(userId: UUID, role: String) = {
     val s = NodesTable.New(userId, role)
     db.save(s)
@@ -22,8 +26,8 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
     new NodeNotFoundError(userId, role)
   }
 
-  def nodeUpdateError(userId: UUID, role: String) = {
-    new NodeUpdateError(userId, role)
+  def nodeUpdateError(node: NodesTable.Persisted) = {
+    new NodeUpdateError(node)
   }
 
   def maybeUpdateNewNodeStatus(prev: NodesTable.Persisted): Try[NodesTable.Persisted] = {
@@ -37,11 +41,15 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
     if(newStatus == prev.status) {
       Success(prev)
     } else {
-      db.save(prev, status = newStatus).toTry(nodeUpdateError(prev.userId, prev.role))
+      db.save(prev, status = newStatus).toTry(nodeUpdateError(prev))
     }
   }
 
-  def upNodeAction(userId: UUID, role: String): UpResult = {
+  //
+  // Actions
+  //
+
+  def upNodeAction(userId: UUID, role: String): UpNodeResult = {
     val re : Try[NodesTable.Persisted] =
       for {
         parentRecord <- db.last(userId, role) orElse createNewNode(userId, role) toTry nodeNotFoundError(userId, role)
@@ -49,24 +57,41 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
       } yield newRecord
 
     re match {
-      case Success(node) => UpSuccess(node)
-      case Failure(e)    => UpFailure(e)
+      case Success(node) => UpNodeSuccess(node)
+      case Failure(e)    => UpNodeFailure(e)
     }
   }
 
-  def getNodeAction(userId: UUID, role: String): GetResult = {
+  def getNodeAction(userId: UUID, role: String): GetNodeResult = {
     val re = db.last(userId, role)
     re match {
-      case Some(n) => GetSuccess(n)
-      case None    => GetFailure(nodeNotFoundError(userId, role))
+      case Some(n) => GetNodeSuccess(n)
+      case None    => GetNodeFailure(nodeNotFoundError(userId, role))
+    }
+  }
+
+  def newNodesAction(): NewNodesResult = {
+    val re = db.allNew()
+    NewNodesSuccess(re)
+  }
+
+  def attachNodeAction(node: NodesTable.Persisted, cloudId: String): AttachNodeResult = {
+    val re = db.save(node, status = Status.Active, cloudId = cloudId)
+    re match {
+      case Some(node) => AttachNodeSuccess(node)
+      case None       => AttachNodeFailure(nodeUpdateError(node))
     }
   }
 
   def receive = {
-    case Up(userId, role) =>
+    case UpNode(userId, role) =>
       sender() ! upNodeAction(userId, role)
-    case Get(userId, role) =>
+    case GetNode(userId, role) =>
       sender() ! getNodeAction(userId, role)
+    case NewNodes() =>
+      sender() ! newNodesAction()
+    case AttachNode(node, cloudId) =>
+      sender() ! attachNodeAction(node, cloudId)
   }
 }
 
@@ -76,16 +101,25 @@ object NodesActor {
 
   class NodeNotFoundError(userId: UUID, role: String)
     extends RuntimeException(s"Cannot found node with user_id=$userId and role=$role")
-  class NodeUpdateError(userId: UUID, role: String)
-    extends RuntimeException(s"Cannot update node with user_id=$userId and role=$role")
+  class NodeUpdateError(node: NodesTable.Persisted)
+    extends RuntimeException(s"Cannot update node $node")
 
-  case class Up(userId: UUID, role: String)
-  sealed trait UpResult
-  case class UpSuccess(node: NodesTable.Persisted) extends UpResult
-  case class UpFailure(e: Throwable) extends UpResult
+  case class UpNode(userId: UUID, role: String)
+  sealed trait UpNodeResult
+  case class UpNodeSuccess(node: NodesTable.Persisted) extends UpNodeResult
+  case class UpNodeFailure(e: Throwable) extends UpNodeResult
 
-  case class Get(userId: UUID, role: String)
-  sealed trait GetResult
-  case class GetSuccess(node: NodesTable.Persisted) extends GetResult
-  case class GetFailure(e: Throwable) extends GetResult
+  case class GetNode(userId: UUID, role: String)
+  sealed trait GetNodeResult
+  case class GetNodeSuccess(node: NodesTable.Persisted) extends GetNodeResult
+  case class GetNodeFailure(e: Throwable) extends GetNodeResult
+
+  case class NewNodes()
+  sealed trait NewNodesResult
+  case class NewNodesSuccess(nodes: List[NodesTable.Persisted]) extends NewNodesResult
+
+  case class AttachNode(node: NodesTable.Persisted, cloudId: String)
+  sealed trait AttachNodeResult
+  case class AttachNodeSuccess(node: NodesTable.Persisted) extends AttachNodeResult
+  case class AttachNodeFailure(e: Throwable) extends AttachNodeResult
 }

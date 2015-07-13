@@ -29,7 +29,32 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
   }
 
   "A NodesActorSpec actor" must {
-    "fail to create a new node" in {
+
+    "successfuly process NewNodes message" in {
+      val role  = "new-nodes"
+      val actor = system.actorOf(NodesActor.props(nodesTable))
+
+      actor ! NodesActor.NewNodes()
+      expectMsgPF(timeout.duration) {
+        case NodesActor.NewNodesSuccess(nodes: Seq[NodesTable.Persisted]) =>
+          assert(nodes.isEmpty)
+        case unknown =>
+          fail(s"unknown message $unknown")
+      }
+
+      val newNode = NodesTable.New(userId, role)
+      val rec = nodesTable.save(newNode).get
+
+      actor ! NodesActor.NewNodes()
+      expectMsgPF(timeout.duration) {
+        case NodesActor.NewNodesSuccess(nodes: Seq[NodesTable.Persisted]) =>
+          assert(nodes == Seq(rec))
+        case unknown =>
+          fail(s"unknown message $unknown")
+      }
+    }
+
+    "fail to process UpNode message (create a new node broken)" in {
       val role = "create-broken"
       val fNodesTable = new NodesTable(db, tableName) {
         override def save(n: NodesTable.New): Option[NodesTable.Persisted] = {
@@ -38,9 +63,9 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
       }
       val actor = system.actorOf(NodesActor.props(fNodesTable))
 
-      actor ! NodesActor.Up(userId, role)
+      actor ! NodesActor.UpNode(userId, role)
       expectMsgPF(timeout.duration) {
-        case NodesActor.UpFailure(e) =>
+        case NodesActor.UpNodeFailure(e) =>
           assert(e.isInstanceOf[NodesActor.NodeNotFoundError])
         case unknown =>
           fail(s"unknown message $unknown")
@@ -50,7 +75,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
       assert(allNodes.isEmpty)
     }
 
-    "fail to update a node status" in {
+    "fail to process UpNode message (update a node status broken)" in {
       val role = "update-broken"
       val fNodesTable = new NodesTable(db, tableName) {
         override def save(prev: NodesTable.Persisted, status: Status.Value = Status.Undefined, cloudId: String = ""): Option[NodesTable.Persisted] = {
@@ -64,9 +89,9 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
       val re1 = nodesTable.save(newNode).get
       nodesTable.save(re1, status = Status.Finished).get
 
-      actor ! NodesActor.Up(userId, role)
+      actor ! NodesActor.UpNode(userId, role)
       expectMsgPF(timeout.duration) {
-        case NodesActor.UpFailure(e) =>
+        case NodesActor.UpNodeFailure(e) =>
           assert(e.isInstanceOf[NodesActor.NodeUpdateError])
         case unknown =>
           fail(s"unknown message $unknown")
@@ -76,15 +101,15 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
       assert(allNodes == List("Finished", "New"))
     }
 
-    "successfuly receive Up message" in {
+    "successfuly process UpNode message" in {
       val role  = "default"
       val actor = system.actorOf(NodesActor.props(nodesTable))
 
       val receive = () => {
         var re: NodesTable.Persisted = null
-        actor ! NodesActor.Up(userId, role)
+        actor ! NodesActor.UpNode(userId, role)
         expectMsgPF(timeout.duration) {
-          case NodesActor.UpSuccess(node) =>
+          case NodesActor.UpNodeSuccess(node) =>
             re = node
           case unknown =>
             fail(s"unknown message $unknown")

@@ -52,12 +52,12 @@ class LastNodesTable(db:DB.Session, tableName:String) {
     Option(re) map fromRow
   }
 
-  def allByStatus(statuses: Seq[Status.Value]): Seq[Persisted] = {
+  def allByStatus(statuses: Seq[Status.Value]): List[Persisted] = {
     val list = statuses map (_.toInt) mkString ","
     val re = db.execute(
       s"SELECT * FROM $tableName WHERE status IN ($list)"
     ).all()
-    re.toSeq map fromRow
+    re.toList map fromRow
   }
 
   def save(rec:NodesTable.Persisted): Option[Persisted] = {
