@@ -12,7 +12,7 @@ class WatchNewNodesActor(nodesActor: ActorRef) extends Actor with ActorLogging {
 
   type NodesList = List[NodesTable.Persisted]
 
-  var nodes: NodesList = List.empty
+  var nodes = List.empty[NodesTable.Persisted]
   val tick  = context.system.scheduler.schedule(0.seconds, 10.seconds, self, Tick())
 
   override def postStop() = tick.cancel()

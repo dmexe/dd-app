@@ -1,6 +1,6 @@
 package io.vexor.dd.actors
 
-import akka.actor.{Props, ActorLogging, Actor}
+import akka.actor.{ActorRef, Props, ActorLogging, Actor}
 import akka.pattern.ask
 import io.vexor.dd.handlers.NodesHandler
 import io.vexor.dd.models.{NodesTable, DB}
@@ -15,23 +15,33 @@ object MainActor {
   case class Initialized() extends InitResult
   case class InitFailed(e: Throwable) extends InitResult
 
-  def props(nodesTable: NodesTable) : Props = Props(new MainActor(nodesTable))
+  def props(db: DB.Session, cloud: AbstractCloud) : Props = Props(new MainActor(db, cloud))
 }
 
-class MainActor(nodesTable: NodesTable) extends Actor with ActorLogging {
+class MainActor(db: DB.Session, cloud: AbstractCloud) extends Actor with ActorLogging {
 
   import MainActor._
 
   implicit val timeout = Utils.timeoutSec(5)
 
-  val nodesActor = context.actorOf(NodesActor.props(nodesTable),    "nodes")
-  val httpActor  = context.actorOf(NodesHandler.props,              "http")
+  val nodesTable = NodesTable(db)
 
-  val watchNewNodesActor = context.actorOf(WatchNewNodesActor.props(nodesActor))
+  var nodesActor = Option.empty[ActorRef]
+  var cloudActor = Option.empty[ActorRef]
+  var httpActor  = Option.empty[ActorRef]
 
   def receive = {
     case Init =>
-      IO(Http)(context.system) ? Http.Bind(httpActor, interface = "localhost", port = 3000)
+      nodesTable.up()
+
+      nodesActor = Option(context.actorOf(NodesActor.props(nodesTable),    "nodes"))
+      cloudActor = Option(context.actorOf(CloudActor.props(cloud),         "cloud"))
+      httpActor  = Option(context.actorOf(NodesHandler.props,              "http"))
+
+      httpActor map { actor =>
+        IO(Http)(context.system) ? Http.Bind(actor, interface = "localhost", port = 3000)
+      }
+
       sender() ! Initialized()
   }
 }

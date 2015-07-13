@@ -23,12 +23,6 @@ object Main extends App with AppEnv {
     db.get
   }
 
-  def initNodesTable(db: DB.Session) = {
-    val nodesTable = NodesTable(db)
-    nodesTable.up()
-    nodesTable
-  }
-
   def initCloud() : AbstractCloud = {
     new DigitalOceanCloud(
       appConfig.getString("cloud.digitalocean.token"),
@@ -40,9 +34,9 @@ object Main extends App with AppEnv {
   }
 
   def initMainActor() = {
-    val db         = initDb()
-    val nodesTable = initNodesTable(db)
-    system.actorOf(MainActor.props(nodesTable), "main")
+    val db    = initDb()
+    val cloud = initCloud()
+    system.actorOf(MainActor.props(db, cloud), "main")
   }
 
   val mainActor = initMainActor()

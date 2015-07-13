@@ -8,20 +8,24 @@ trait AbstractCloud {
 
   import AbstractCloud._
 
-  def create(role: String): Try[Instance]
-  def find(id: UUID):   Option[Instance]
+  def create(userId: UUID, role: String, version: Int): Try[Instance]
+  def all(): Try[List[Instance]]
+  def destroy(id: String): Try[Boolean]
 }
 
 object AbstractCloud {
 
   object Status extends Enumeration {
-    val Pending, Active, Broken = Value
+    val Pending, On, Off, Broken = Value
   }
 
   trait Instance {
-    val id:     String
-    val role:   String
-    val status: Status.Value
+    val id:      String
+    val name:    String
+    val userId:  UUID
+    val role:    String
+    val version: Int
+    val status:  Status.Value
   }
 }
 

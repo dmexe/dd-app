@@ -35,5 +35,4 @@ libraryDependencies ++= Seq(
   "com.myjeeva.digitalocean" % "digitalocean-api-client" % "2.1"
 )
 
-
 fork in run := true
