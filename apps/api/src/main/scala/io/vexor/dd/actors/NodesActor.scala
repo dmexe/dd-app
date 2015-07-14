@@ -76,7 +76,7 @@ class NodesActor(db: NodesTable) extends Actor with ActorLogging {
   }
 
   def attachNodeAction(node: NodesTable.Persisted, cloudId: String): AttachNodeResult = {
-    val re = db.save(node, status = Status.Active, cloudId = cloudId)
+    val re = db.save(node, status = Status.Active, cloudId = Option(cloudId))
     re match {
       case Some(node) => AttachNodeSuccess(node)
       case None       => AttachNodeFailure(nodeUpdateError(node))

@@ -78,7 +78,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
     "fail to process UpNode message (update a node status broken)" in {
       val role = "update-broken"
       val fNodesTable = new NodesTable(db, tableName) {
-        override def save(prev: NodesTable.Persisted, status: Status.Value = Status.Undefined, cloudId: String = ""): Option[NodesTable.Persisted] = {
+        override def save(prev: NodesTable.Persisted, status: Status.Value = Status.Undefined, cloudId: Option[String] = None): Option[NodesTable.Persisted] = {
           None
         }
       }

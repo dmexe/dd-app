@@ -73,7 +73,7 @@ class NodesTable(db: Session, tableName: String) extends  {
     } yield maybeRec
   }
 
-  def save(prev: Persisted, status: Status.Value = Status.Undefined, cloudId: String = ""): Option[Persisted] = {
+  def save(prev: Persisted, status: Status.Value = Status.Undefined, cloudId: Option[String] = None): Option[Persisted] = {
     val version = prev.version + 1
 
     val newStatus =
@@ -83,20 +83,13 @@ class NodesTable(db: Session, tableName: String) extends  {
         status
       }
 
-    val newCloudId =
-      if(cloudId == "") {
-        prev.cloudId.orNull
-      } else {
-        cloudId
-      }
-
     db.execute(
       s"INSERT INTO $tableName (user_id, role, version, status, cloud_id, created_at) VALUES (?, ?, ?, ?, ?, dateOf(now()))",
       prev.userId,
       prev.role,
       version: Integer,
       newStatus.toInt,
-      newCloudId
+      cloudId.orNull
     )
 
     for {

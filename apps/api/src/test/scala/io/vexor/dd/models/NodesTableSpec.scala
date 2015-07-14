@@ -70,7 +70,7 @@ class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll w
       val ppLast = db.last(userId, role).get
       assert(ppRec == ppLast)
 
-      re = db.save(ppRec, cloudId = "cloudId")
+      re = db.save(ppRec, cloudId = Some("cloudId"))
       re match {
         case Some(NodesTable.Persisted(pUserId, pRole, pVersion, pStatus, pCloudId, _)) =>
           assert(pUserId  == userId)

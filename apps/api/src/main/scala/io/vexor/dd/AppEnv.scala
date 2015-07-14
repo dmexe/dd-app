@@ -5,7 +5,7 @@ import com.typesafe.config.ConfigFactory
 import scala.util.Properties
 
 trait AppEnv {
-  implicit lazy val system = ActorSystem(s"dd-$appEnv", appConfig)
+  implicit lazy val system = ActorSystem(appEnv, appConfig)
 
   lazy val appConfig = ConfigFactory.load(appEnv)
   lazy val dbUrl     = appConfig.getString("db.url")
