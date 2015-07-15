@@ -72,7 +72,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   onTransition {
     case a -> b =>
-      log.warning(s"\n\n!!!!!!!!!!!!!!!!!!!!\n $a -> $b using $nextStateData\n\n")
+      log.info(s"Transition $a -> $b using $nextStateData")
   }
 
   initialize()
