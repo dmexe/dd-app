@@ -1,125 +1,95 @@
 package io.vexor.dd.actors
 
-import java.util.UUID
-
-import akka.actor.{Props, ActorLogging, Actor}
+import akka.actor.FSM.NullFunction
+import akka.actor.{FSM, Props, ActorLogging}
 import io.vexor.dd.models.NodesTable
-import io.vexor.dd.models.NodesTable.Status
-import io.vexor.dd.Utils.OptionToTry
 
-import scala.util.{Failure, Success, Try}
-
-class NodesActor(db: NodesTable) extends Actor with ActorLogging {
+class NodesActor(db: NodesTable) extends FSM[NodesActor.State, NodesActor.Data] with ActorLogging {
 
   import NodesActor._
 
+  startWith(State.Idle, Data.Empty)
+
+  when(State.Idle) {
+    awaitStart
+  }
+
+  when(State.Recovery) {
+    awaitRecovered
+  }
+
+  when(State.Active) {
+    NullFunction
+  }
+
+  onTransition {
+    case State.Idle -> State.Recovery => {
+      recoveryNodes(nextStateData)
+      self ! Command.Recovered
+    }
+  }
+
+  onTransition {
+    case a -> b =>
+      log.info(s"Transition $a -> $b using $nextStateData")
+  }
+
   //
-  // Helper methods
+  //
   //
 
-  def createNewNode(userId: UUID, role: String) = {
-    val s = NodesTable.New(userId, role)
-    db.save(s)
-  }
-
-  def nodeNotFoundError(userId: UUID, role: String) = {
-    new NodeNotFoundError(userId, role)
-  }
-
-  def nodeUpdateError(node: NodesTable.Persisted) = {
-    new NodeUpdateError(node)
-  }
-
-  def maybeUpdateNewNodeStatus(prev: NodesTable.Persisted): Try[NodesTable.Persisted] = {
-    val newStatus =
-      prev.status match {
-        case Status.Frozen   => Status.New
-        case Status.Broken   => Status.New
-        case Status.Finished => Status.New
-        case _               => prev.status
+  def awaitStart: StateFunction = {
+    case Event(Command.Start, _) =>
+      val nodes = nodesNeedToRecovery()
+      if(nodes.isEmpty) {
+        goto(State.Active)
+      } else {
+        goto(State.Recovery) using Data.Nodes(nodes)
       }
-    if(newStatus == prev.status) {
-      Success(prev)
-    } else {
-      db.save(prev, status = newStatus).toTry(nodeUpdateError(prev))
-    }
+  }
+
+  def awaitRecovered: StateFunction = {
+    case Event(Command.Recovered, _) =>
+      goto(State.Active) using Data.Empty
   }
 
   //
-  // Actions
   //
+  //
+  def nodesNeedToRecovery(): NodesList = {
+    List.empty
+  }
 
-  def upNodeAction(userId: UUID, role: String): UpNodeResult = {
-    val re : Try[NodesTable.Persisted] =
-      for {
-        parentRecord <- db.last(userId, role) orElse createNewNode(userId, role) toTry nodeNotFoundError(userId, role)
-        newRecord    <- maybeUpdateNewNodeStatus(parentRecord)
-      } yield newRecord
-
-    re match {
-      case Success(node) => UpNodeSuccess(node)
-      case Failure(e)    => UpNodeFailure(e)
+  def recoveryNodes(data: Data): Unit = {
+    data match {
+      case Data.Nodes(nodes) =>
+      case _ =>
     }
-  }
-
-  def getNodeAction(userId: UUID, role: String): GetNodeResult = {
-    val re = db.last(userId, role)
-    re match {
-      case Some(n) => GetNodeSuccess(n)
-      case None    => GetNodeFailure(nodeNotFoundError(userId, role))
-    }
-  }
-
-  def newNodesAction(): NewNodesResult = {
-    val re = db.allNew()
-    NewNodesSuccess(re)
-  }
-
-  def attachNodeAction(node: NodesTable.Persisted, cloudId: String): AttachNodeResult = {
-    val re = db.save(node, status = Status.Active, cloudId = Option(cloudId))
-    re match {
-      case Some(node) => AttachNodeSuccess(node)
-      case None       => AttachNodeFailure(nodeUpdateError(node))
-    }
-  }
-
-  def receive = {
-    case UpNode(userId, role) =>
-      sender() ! upNodeAction(userId, role)
-    case GetNode(userId, role) =>
-      sender() ! getNodeAction(userId, role)
-    case NewNodes() =>
-      sender() ! newNodesAction()
-    case AttachNode(node, cloudId) =>
-      sender() ! attachNodeAction(node, cloudId)
   }
 }
 
 object NodesActor {
 
+  type PersistedNode = NodesTable.Persisted
+  type NodesList     = List[PersistedNode]
+
+  sealed trait State
+  object State {
+    case object Idle     extends State
+    case object Active   extends State
+    case object Recovery extends State
+  }
+
+  sealed trait Data
+  object Data {
+    case object Empty                  extends Data
+    case class Nodes(nodes: NodesList) extends Data
+  }
+
+  object Command {
+    case object Start
+    case object Recovered
+  }
+
   def props(db: NodesTable) : Props = Props(new NodesActor(db))
-
-  class NodeNotFoundError(userId: UUID, role: String)
-    extends RuntimeException(s"Cannot found node with user_id=$userId and role=$role")
-  class NodeUpdateError(node: NodesTable.Persisted)
-    extends RuntimeException(s"Cannot update node $node")
-
-  case class UpNode(userId: UUID, role: String)
-  sealed trait UpNodeResult
-  case class UpNodeSuccess(node: NodesTable.Persisted) extends UpNodeResult
-  case class UpNodeFailure(e: Throwable) extends UpNodeResult
-
-  case class GetNode(userId: UUID, role: String)
-  sealed trait GetNodeResult
-  case class GetNodeSuccess(node: NodesTable.Persisted) extends GetNodeResult
-  case class GetNodeFailure(e: Throwable) extends GetNodeResult
-
-  case class NewNodes()
-  sealed trait NewNodesResult
-  case class NewNodesSuccess(nodes: List[NodesTable.Persisted]) extends NewNodesResult
-
-  case class AttachNode(node: NodesTable.Persisted, cloudId: String)
-  sealed trait AttachNodeResult
-  case class AttachNodeSuccess(node: NodesTable.Persisted) extends AttachNodeResult
-  case class AttachNodeFailure(e: Throwable) extends AttachNodeResult
 }

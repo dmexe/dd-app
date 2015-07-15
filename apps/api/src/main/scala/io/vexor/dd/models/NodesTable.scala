@@ -138,8 +138,8 @@ class NodesTable(db: Session, tableName: String) extends  {
     re.toList map fromRow
   }
 
-  def allNew() : List[Persisted] = {
-    val re = lastNodes.allByStatus(Seq(Status.New))
+  def allRunning() : List[Persisted] = {
+    val re = lastNodes.allByStatus(List(Status.New, Status.Pending, Status.Active))
     re flatMap { l =>
       one(l.userId, l.role, l.version)
     }
@@ -152,7 +152,7 @@ object NodesTable extends {
   val ORDER_BY   = "ORDER BY version DESC"
 
   object Status extends Enumeration {
-    val New, Pending, Active, Frozen, Finished, Broken, Undefined = Value
+    val New, Pending, Active, Finished, Broken, Undefined = Value
 
     object Conversions {
       implicit class ToInt(v : Value) {
@@ -160,9 +160,8 @@ object NodesTable extends {
           case New      => 0
           case Pending  => 1
           case Active   => 2
-          case Frozen   => 3
-          case Finished => 4
-          case Broken   => 5
+          case Finished => 3
+          case Broken   => 4
         }
       }
 
@@ -171,9 +170,8 @@ object NodesTable extends {
           case 0 => New
           case 1 => Pending
           case 2 => Active
-          case 3 => Frozen
-          case 4 => Finished
-          case 5 => Broken
+          case 3 => Finished
+          case 4 => Broken
         }
       }
     }

@@ -40,32 +40,41 @@ object NodesHandler {
 
     def putNodeAction(role: String) = {
       put {
+        complete("OK")
+        /*
         onSuccess(nodesActor ? NodesActor.UpNode(userId, role)) {
           case NodesActor.UpNodeSuccess(node) =>
             complete(PutResponse(node))
           case NodesActor.UpNodeFailure(e) =>
             complete(UnprocessableEntity, e.getMessage)
         }
+        */
       }
     }
 
     def getNodeAction(role: String) = {
       get {
+        complete("OK")
+        /*
         onSuccess(nodesActor ? NodesActor.GetNode(userId, role)) {
           case NodesActor.GetNodeSuccess(node) =>
             complete(PutResponse(node))
           case NodesActor.GetNodeFailure(e) =>
             complete(NotFound, e.getMessage)
         }
+        */
       }
     }
 
     def getInstancesAction = {
       get {
+        complete("OK")
+        /*
         onSuccess(cloudActor ? CloudActor.GetAll()) {
           case CloudActor.GetAllSuccess(instances) =>
             complete(instances map(InstanceResponse(_)))
         }
+        */
       }
     }
 
