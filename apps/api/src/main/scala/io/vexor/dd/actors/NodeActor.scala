@@ -8,7 +8,7 @@ import io.vexor.dd.cloud.AbstractCloud
 import io.vexor.dd.models.NodesTable
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
-import scala.util.{Try, Success}
+import scala.util.{Failure, Try, Success}
 
 class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.State, NodeActor.Data] with ActorLogging {
 
@@ -101,7 +101,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case Success(CloudReply.CreateSuccess(instance)) =>
           val newNode = node.copy(status = NodeStatus.Pending, cloudId = Some(instance.id))
           goto(State.Pending) using Data.Node(newNode)
-        case error =>
+        case Success(error) =>
+          gotoShutdown(error.toString)
+        case Failure(error) =>
           gotoShutdown(error.toString)
       }
   }
@@ -115,7 +117,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
           goto(State.Active) using Data.Node(activeNode)
         case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
           stay()
-        case error =>
+        case Success(error) =>
+          gotoShutdown(error.toString)
+        case Failure(error) =>
           gotoShutdown(error.toString)
       }
   }

@@ -34,6 +34,10 @@ class LastNodesTable(db:DB.Session, tableName:String) {
     db.execute(s"DROP TABLE IF EXISTS $tableName")
   }
 
+  def truncate(): Unit = {
+    db.execute(s"TRUNCATE $tableName")
+  }
+
   def fromRow(row: Row): Persisted = {
     val userId    = row.getUUID("user_id")
     val role      = row.getString("role")

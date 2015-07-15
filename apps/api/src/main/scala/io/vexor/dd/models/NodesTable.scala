@@ -37,6 +37,11 @@ class NodesTable(db: Session, tableName: String) extends  {
     lastNodes.down()
   }
 
+  def truncate(): Unit = {
+    db.execute(s"TRUNCATE $tableName")
+    lastNodes.truncate()
+  }
+
   private def fromRow(row: Row): Persisted = {
     val userId    = row.getUUID("user_id")
     val role      = row.getString("role")
