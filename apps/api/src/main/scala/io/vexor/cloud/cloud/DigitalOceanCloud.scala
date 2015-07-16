@@ -49,18 +49,18 @@ class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int,
   }
 
   private def dropletToInstance(droplet: Droplet): Option[Instance] = {
-    val name   = droplet.getName()
+    val name   = droplet.getName
     nameRe.findFirstMatchIn(name) map { i =>
       val userId  = i.group(1: Int)
       val role    = i.group(2: Int)
       val version = i.group(3: Int)
       val id      = droplet.getId.toString
       val status  = droplet.getStatus.toString match {
-        case "new"    => Status.Pending
-        case "active" => Status.On
-        case "off"    => Status.Off
-        case "arhive" => Status.Off
-        case _        => Status.Broken
+        case "new"     => Status.Pending
+        case "active"  => Status.On
+        case "off"     => Status.Off
+        case "archive" => Status.Off
+        case _         => Status.Broken
       }
       Instance(id, name, UUID.fromString(userId), role, version.toInt, status)
     }
@@ -73,8 +73,8 @@ class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int,
     if(newDroplets.isEmpty) {
       collected
     } else {
-      val newInstances = newDroplets.map(dropletToInstance).flatten
-      allAvailableDroplets(collected ++ newInstances, pageNo + 1)
+      val newInstances = newDroplets.flatMap(dropletToInstance) ++ collected
+      allAvailableDroplets(newInstances, pageNo + 1)
     }
   }
 }

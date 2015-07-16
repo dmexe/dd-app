@@ -94,7 +94,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case Some(node) =>
           goto(State.New) using Data.Node(node) replying Reply.CreateSuccess(node)
         case None =>
-          val msg = s"Cannot found saved node $newNode"
+          val msg = s"Cannot fetch created record [node=$newNode]"
           log.error(msg)
           goto(State.Idle) using Data.Empty replying Reply.CreateFailure(msg)
       }
@@ -102,7 +102,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   def awaitRecovery: StateFunction = {
     case Event(Command.Recovery(node), _) =>
-      log.info(s"Received: Command.Recovery($node)")
+      log.info(s"Received recovery [node=$node]")
       node.status match {
         case NodeStatus.New =>
           goto(State.New) using Data.Node(node) replying Reply.RecoverySuccess(State.New)
@@ -120,7 +120,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   // New
   def createInstanceForNode: StateFunction = {
     case Event(Command.CreateInstance, Data.Node(node)) =>
-      val fu = cloudActor ? CloudCommand.Create(node.userId, node.role)
+      val fu = cloudActor ? CloudCommand.Create(node.userId, node.role, node.version)
       val re = Try { Await.result(fu, timeout.duration).asInstanceOf[CloudReply.CreateResult] }
       re match {
         case Success(CloudReply.CreateSuccess(instance)) =>
@@ -151,8 +151,6 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
       getInstance(node) match {
         case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.On =>
           stay()
-        case Success(_) =>
-          gotoShutdown(node)
         case error =>
           gotoShutdown(node, error.toString)
       }
@@ -174,8 +172,8 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
     Try { Await.result(fu, timeout.duration).asInstanceOf[CloudReply.GetResult] }
   }
 
-  def gotoShutdown(node: PersistedNode): State = {
-    log.info(s"Node successfuly finished")
+  def gotoShutdown(node: PersistedNode, status: CloudStatus.Value): State = {
+    log.info(s"Node successfuly finished [instance=$status]")
     db.save(node, status = NodeStatus.Finished)
     goto(State.Idle) using Data.Empty
   }

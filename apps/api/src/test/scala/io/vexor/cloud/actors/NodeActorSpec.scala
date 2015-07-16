@@ -59,7 +59,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
   def passNewState(cloudActor: TestProbe): Unit = {
     // New: create instance
     cloudActor.expectMsgPF(5.seconds) {
-      case CloudActor.Command.Create(i, r) =>
+      case CloudActor.Command.Create(i, r, v) =>
         assert(i == userId)
         assert(r == role)
     }
@@ -115,7 +115,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
   def failNewStateWith(cloudActor: TestProbe, m: Any): Unit = {
     // New: create instance
     cloudActor.expectMsgPF(5.seconds) {
-      case CloudActor.Command.Create(_, _) =>
+      case CloudActor.Command.Create(_, _, _) =>
     }
 
     // New: reply instance if fail
@@ -178,7 +178,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passActiveState(nodeActor, cloudActor)
       expectIdleState(nodeActor)
 
-      val expected = List((4,"Finished"), (3,"Active"), (2,"Pending"), (1,"New"))
+      // TODO: shutdown instance
+      val expected = List((4,"Broken"), (3,"Active"), (2,"Pending"), (1,"New"))
       assertPersistentVersions(expected)
     }
 
@@ -260,7 +261,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       failActiveWith(nodeActor, cloudActor, CloudActor.Reply.GetSuccess(brokenInstance))
       expectIdleState(nodeActor)
 
-      val expected = List((4, "Finished"),(3, "Active"),(2,"Pending"),(1, "New"))
+      val expected = List((4, "Broken"),(3, "Active"),(2,"Pending"),(1, "New"))
       assertPersistentVersions(expected)
     }
 

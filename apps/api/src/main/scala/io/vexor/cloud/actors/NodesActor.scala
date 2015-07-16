@@ -2,7 +2,6 @@ package io.vexor.cloud.actors
 
 import java.util.UUID
 
-import akka.actor.FSM.NullFunction
 import akka.pattern.ask
 import akka.actor.{ActorRef, FSM, Props, ActorLogging}
 import io.vexor.cloud.models.NodesTable
@@ -15,6 +14,8 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
   import NodesActor._
   import context.dispatcher
 
+  val cleanupInterval = 1.minute
+
   startWith(State.Idle, Data.Empty)
 
   when(State.Idle) {
@@ -23,6 +24,13 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
 
   when(State.Active) {
     awaitNodeActions
+  }
+
+  onTransition {
+    case _ -> State.Active =>
+      setTimer("tick", Command.Tick, cleanupInterval, repeat = true)
+    case State.Active -> _ =>
+      cancelTimer("tick")
   }
 
   onTransition {
@@ -59,9 +67,15 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
       val newNode = NodesTable.New(userId, role)
       actor forward NodeActor.Command.Create(newNode)
       stay()
+
     case Event(Command.Get(userId, role), _) =>
       val actor   = getNodeActor(userId, role)
       actor forward NodeActor.Command.Get
+      stay()
+
+    case Event(Command.Tick, _) =>
+      val cloudIds = db.allRunning() flatMap(_.cloudId)
+      ask(cloud, CloudActor.Command.Cleanup(cloudIds))(5.seconds)
       stay()
   }
 
@@ -84,7 +98,7 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
   def getNodeActor(userId: UUID, role: String): ActorRef = {
     val name = s"node-$userId-$role"
     context.child(name) getOrElse {
-      context.actorOf(NodeActor.props(db, cloud))
+      context.actorOf(NodeActor.props(db, cloud), name)
     }
   }
 }
@@ -114,6 +128,7 @@ object NodesActor {
     case object Recovered
     case class  Create(userId: UUID, role: String)
     case class  Get(userId: UUID, role: String)
+    case object Tick
   }
 
   object Reply {
