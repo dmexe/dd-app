@@ -40,12 +40,12 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
     case Event(Command.Create(newNode), Data.Node(node)) =>
       stay() replying Reply.CreateSuccess(node)
     case Event(Command.Create(newNode), data) =>
-      stay() replying Reply.CreateFailure(new RuntimeException(s"Cannot create a new node in a $stateName state with the data $data"))
+      stay() replying Reply.CreateFailure(s"Cannot create a new node in a $stateName state with the data $data")
 
     case Event(Command.Get, Data.Node(node)) =>
       stay() replying Reply.GetSuccess(node)
-    case Event(Command.Get, _) =>
-      stay() replying Reply.GetFailure(new RuntimeException(s"Cannot get a node in a $stateName state"))
+    case Event(Command.Get, data) =>
+      stay() replying Reply.GetFailure(s"Cannot get a node in a $stateName state with the $data")
 
     case Event(Command.Status, data) =>
       stay() replying Reply.StatusSuccess(stateName, data)
@@ -96,7 +96,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case None =>
           val msg = s"Cannot found saved node $newNode"
           log.error(msg)
-          goto(State.Idle) using Data.Empty replying Reply.CreateFailure(runtimeException(msg))
+          goto(State.Idle) using Data.Empty replying Reply.CreateFailure(msg)
       }
   }
 
@@ -113,7 +113,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case unknown =>
           val msg = s"Don't known how to recovery from a $unknown node state"
           log.error(msg)
-          goto(State.Idle) using Data.Empty replying Reply.RecoveryFailure(runtimeException(msg), node)
+          goto(State.Idle) using Data.Empty replying Reply.RecoveryFailure(msg, node)
       }
   }
 
@@ -126,9 +126,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case Success(CloudReply.CreateSuccess(instance)) =>
           val newNode = node.copy(status = NodeStatus.Pending, cloudId = Some(instance.id))
           goto(State.Pending) using Data.Node(newNode)
-        case Success(error) =>
-          gotoShutdown(node, error.toString)
-        case Failure(error) =>
+        case error =>
           gotoShutdown(node, error.toString)
       }
   }
@@ -142,9 +140,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
           goto(State.Active) using Data.Node(activeNode)
         case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
           stay()
-        case Success(error) =>
-          gotoShutdown(node, error.toString)
-        case Failure(error) =>
+        case error =>
           gotoShutdown(node, error.toString)
       }
   }
@@ -245,18 +241,18 @@ object NodeActor {
   object Reply {
     sealed trait CreateResult
     case class CreateSuccess(node: PersistedNode) extends CreateResult
-    case class CreateFailure(e: Throwable) extends CreateResult
+    case class CreateFailure(e: String) extends CreateResult
 
     sealed trait StatusResult
     case class StatusSuccess(state: State, data: Data) extends StatusResult
 
     sealed trait RecoveryResult
     case class RecoverySuccess(state: State) extends RecoveryResult
-    case class RecoveryFailure(e: Throwable, node: PersistedNode) extends RecoveryResult
+    case class RecoveryFailure(e: String, node: PersistedNode) extends RecoveryResult
 
     sealed trait GetResult
     case class GetSuccess(node: PersistedNode) extends GetResult
-    case class GetFailure(e: Throwable) extends GetResult
+    case class GetFailure(e: String) extends GetResult
   }
 
   def props(db: NodesTable, cloud: ActorRef): Props = Props(new NodeActor(db, cloud))

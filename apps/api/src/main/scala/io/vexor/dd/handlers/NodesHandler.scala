@@ -44,7 +44,7 @@ object NodesHandler {
           case NodeActor.Reply.CreateSuccess(node) =>
             complete(PutResponse(node))
           case NodeActor.Reply.CreateFailure(e) =>
-            complete(UnprocessableEntity, e.getMessage)
+            complete(UnprocessableEntity, e)
         }
       }
     }
@@ -55,7 +55,7 @@ object NodesHandler {
           case NodeActor.Reply.GetSuccess(node) =>
             complete(PutResponse(node))
           case NodeActor.Reply.GetFailure(e) =>
-            complete(NotFound, e.getMessage)
+            complete(NotFound, e)
         }
       }
     }

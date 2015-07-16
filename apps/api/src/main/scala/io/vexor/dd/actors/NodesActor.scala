@@ -48,10 +48,8 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
       re match {
         case Success(results: List[NodeActor.Reply.RecoveryResult]) =>
           processRecoveredNodeResult(results)
-        case Failure(error: Throwable) =>
-          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(error)
         case error =>
-          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(new RuntimeException(error.toString))
+          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(error.toString)
       }
   }
 
@@ -77,7 +75,6 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
         case NodeActor.Reply.RecoveryFailure(e, node) =>
           log.error(s"Recovery failure: $e [node=$node]")
         case _ =>
-          false
       }
       log.info(s"Successfuly recovered ${results.size} nodes")
     }
@@ -122,11 +119,11 @@ object NodesActor {
   object Reply {
     sealed trait StartResult
     case object StartSuccess extends StartResult
-    case class StartFailure(e: Throwable) extends StartResult
+    case class StartFailure(e: String) extends StartResult
 
     sealed trait CreateResult
     case class CreateSuccess(node: PersistedNode) extends CreateResult
-    case class CreateFailure(e: Throwable) extends CreateResult
+    case class CreateFailure(e: String) extends CreateResult
   }
 
   def props(db: NodesTable, cloud: ActorRef) : Props = Props(new NodesActor(db, cloud))

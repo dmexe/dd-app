@@ -205,7 +205,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
 
       passIdleState(nodeActor)
-      failNewStateWith(cloudActor, CloudActor.Reply.CreateFailure(new RuntimeException("noop")))
+      failNewStateWith(cloudActor, CloudActor.Reply.CreateFailure("noop"))
       expectIdleState(nodeActor)
 
       val expected = List((2, "Broken"),(1, "New"))
@@ -217,7 +217,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
 
       passIdleState(nodeActor)
-      failNewStateWith(cloudActor, new RuntimeException("noop"))
+      failNewStateWith(cloudActor, "noop")
       expectIdleState(nodeActor)
 
       val expected = List((2, "Broken"),(1, "New"))
@@ -243,7 +243,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
-      failPendingWith(cloudActor, new RuntimeException("noop"))
+      failPendingWith(cloudActor, "noop")
       expectIdleState(nodeActor)
 
       val expected = List((3, "Broken"),(2,"Pending"),(1, "New"))
@@ -271,7 +271,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passIdleState(nodeActor)
       passNewState(cloudActor)
       passPendingState(nodeActor, cloudActor)
-      failActiveWith(nodeActor, cloudActor, new RuntimeException("noop"))
+      failActiveWith(nodeActor, cloudActor, "noop")
       expectIdleState(nodeActor)
 
       val expected = List((4, "Broken"),(3, "Active"),(2,"Pending"),(1, "New"))

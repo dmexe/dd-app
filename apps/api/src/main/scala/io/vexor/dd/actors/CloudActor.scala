@@ -42,7 +42,7 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
         case Success(instances: InstanceList) =>
           goto(State.Active) using Data.Instances(instances) replying Reply.StartSuccess
         case error =>
-          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(new RuntimeException(error.toString))
+          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(error.toString)
       }
   }
 
@@ -53,8 +53,8 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
           val newInstances = instances ++ List(instance)
           logInstances(newInstances)
           stay() using Data.Instances(newInstances) replying Reply.CreateSuccess(instance)
-        case Failure(error) =>
-          stay() replying Reply.CreateFailure(error)
+        case error =>
+          stay() replying Reply.CreateFailure(error.toString)
       }
   }
 
@@ -76,11 +76,11 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
   def awaitGetInstance: StateFunction = {
     case Event(Command.Get(instanceId), Data.Instances(instances)) =>
       val re =
-        instances.find { instance =>
-          instance.id == instanceId
-        } map Reply.GetSuccess getOrElse {
-          Reply.GetFailure(new RuntimeException(s"Cannot found instance with id=$instanceId"))
-        }
+        instances
+          .find      { instance => instance.id == instanceId }
+          .map       { Reply.GetSuccess(_) }
+          .getOrElse { Reply.GetFailure(s"Cannot found instance with id=$instanceId") }
+
       stay() replying re
   }
 
@@ -119,14 +119,14 @@ object CloudActor {
   object Reply {
     sealed trait StartResult
     case object StartSuccess extends StartResult
-    case class  StartFailure(e: Throwable) extends StartResult
+    case class  StartFailure(e: String) extends StartResult
 
     sealed trait CreateResult
     case class CreateSuccess(instance: Instance) extends CreateResult
-    case class CreateFailure(e: Throwable)       extends CreateResult
+    case class CreateFailure(e: String)          extends CreateResult
 
     sealed trait GetResult
     case class GetSuccess(instance: Instance)    extends GetResult
-    case class GetFailure(e: Throwable)          extends GetResult
+    case class GetFailure(e: String)             extends GetResult
   }
 }
