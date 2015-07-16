@@ -34,9 +34,11 @@ class MainActor(db: DB.Session, cloud: AbstractCloud) extends Actor with ActorLo
     case Init =>
       nodesTable.up()
 
-      nodesActor = Option(context.actorOf(NodesActor.props(nodesTable),    "nodes"))
       cloudActor = Option(context.actorOf(CloudActor.props(cloud),         "cloud"))
       httpActor  = Option(context.actorOf(NodesHandler.props,              "http"))
+      cloudActor foreach {actor =>
+        nodesActor = Option(context.actorOf(NodesActor.props(nodesTable, actor), "nodes"))
+      }
 
       httpActor map { actor =>
         IO(Http)(context.system) ? Http.Bind(actor, interface = "localhost", port = 3000)

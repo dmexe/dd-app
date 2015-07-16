@@ -1,12 +1,17 @@
 package io.vexor.dd.actors
 
 import akka.actor.FSM.NullFunction
-import akka.actor.{FSM, Props, ActorLogging}
+import akka.pattern.ask
+import akka.actor.{ActorRef, FSM, Props, ActorLogging}
 import io.vexor.dd.models.NodesTable
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await,Future}
+import scala.util.Try
 
-class NodesActor(db: NodesTable) extends FSM[NodesActor.State, NodesActor.Data] with ActorLogging {
+class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, NodesActor.Data] with ActorLogging {
 
   import NodesActor._
+  import context.dispatcher
 
   startWith(State.Idle, Data.Empty)
 
@@ -14,19 +19,8 @@ class NodesActor(db: NodesTable) extends FSM[NodesActor.State, NodesActor.Data] 
     awaitStart
   }
 
-  when(State.Recovery) {
-    awaitRecovered
-  }
-
   when(State.Active) {
     NullFunction
-  }
-
-  onTransition {
-    case State.Idle -> State.Recovery => {
-      recoveryNodes(nextStateData)
-      self ! Command.Recovered
-    }
   }
 
   onTransition {
@@ -34,36 +28,29 @@ class NodesActor(db: NodesTable) extends FSM[NodesActor.State, NodesActor.Data] 
       log.info(s"Transition $a -> $b using $nextStateData")
   }
 
-  //
-  //
-  //
-
   def awaitStart: StateFunction = {
     case Event(Command.Start, _) =>
-      val nodes = nodesNeedToRecovery()
-      if(nodes.isEmpty) {
-        goto(State.Active)
-      } else {
-        goto(State.Recovery) using Data.Nodes(nodes)
-      }
+      recoveryNodes()
+      goto(State.Active)
   }
 
-  def awaitRecovered: StateFunction = {
-    case Event(Command.Recovered, _) =>
-      goto(State.Active) using Data.Empty
+  def recoveryNodes(): Unit = {
+    val timeout = 10.seconds
+    val nodes   = db.allRunning()
+    val futures =
+      Future.sequence(
+        nodes.map { node =>
+          val nodeActor = getNodeActor(node)
+          ask(nodeActor, NodeActor.Command.Recovery(node))(timeout).mapTo[NodeActor.Reply.RecoveryResult]
+        }
+      )
+    val re = Try{ Await.result(futures, timeout) }
   }
 
-  //
-  //
-  //
-  def nodesNeedToRecovery(): NodesList = {
-    List.empty
-  }
-
-  def recoveryNodes(data: Data): Unit = {
-    data match {
-      case Data.Nodes(nodes) =>
-      case _ =>
+  def getNodeActor(node: PersistedNode): ActorRef = {
+    val name = s"node-${node.userId}-${node.role}"
+    context.child(name) getOrElse {
+      context.actorOf(NodeActor.props(db, cloud))
     }
   }
 }
@@ -91,5 +78,5 @@ object NodesActor {
     case object Recovered
   }
 
-  def props(db: NodesTable) : Props = Props(new NodesActor(db))
+  def props(db: NodesTable, cloud: ActorRef) : Props = Props(new NodesActor(db, cloud))
 }

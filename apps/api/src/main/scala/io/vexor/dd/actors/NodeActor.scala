@@ -16,10 +16,12 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   implicit val timeout = Timeout(10.seconds)
 
+  val timerTicks = 5.seconds
+
   startWith(State.Idle, Data.Empty)
 
   when(State.Idle) {
-    createNewNode
+    createNewNode orElse recoveryNode
   }
 
   when(State.New) {
@@ -58,14 +60,14 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   onTransition {
     case _ -> State.Pending =>
-      setTimer("awaitInstanceIsRunning", Command.AwaitInstanceIsRunning, 5.seconds, repeat = true)
+      setTimer("awaitInstanceIsRunning", Command.AwaitInstanceIsRunning, timerTicks, repeat = true)
     case State.Pending -> _ =>
       cancelTimer("awaitInstanceIsRunning")
   }
 
   onTransition {
     case _ -> State.Active =>
-      setTimer("awaitInstanceTermination", Command.AwaitInstanceTermination, 5.seconds, repeat = true)
+      setTimer("awaitInstanceTermination", Command.AwaitInstanceTermination, timerTicks, repeat = true)
     case State.Active -> _ =>
       cancelTimer("awaitInstanceTermination")
   }
@@ -88,7 +90,24 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case Some(node) =>
           goto(State.New) using Data.Node(node) replying Reply.CreateSuccess(node)
         case None =>
-          stay() replying Reply.CreateFailure(notFoundError(newNode))
+          val msg = s"Cannot found saved node $newNode"
+          goto(State.Idle) using Data.Error(msg) replying Reply.CreateFailure(runtimeException(msg))
+      }
+  }
+
+  def recoveryNode: StateFunction = {
+    case Event(Command.Recovery(node), _) =>
+      log.info(s"Received: Command.Recovery($node)")
+      node.status match {
+        case NodeStatus.New =>
+          goto(State.New) using Data.Node(node) replying Reply.RecoverySuccess(State.New)
+        case NodeStatus.Pending =>
+          goto(State.Pending) using Data.Node(node) replying Reply.RecoverySuccess(State.Pending)
+        case NodeStatus.Active =>
+          goto(State.Active) using Data.Node(node) replying Reply.RecoverySuccess(State.Active)
+        case error =>
+          val msg = s"Don't known how to recovery from $error"
+          goto(State.Idle) using Data.Error(msg) replying Reply.RecoveryFailure(runtimeException(msg))
       }
   }
 
@@ -165,8 +184,8 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
     Try { Await.result(fu, timeout.duration).asInstanceOf[CloudReply.GetResult] }
   }
 
-  def notFoundError(newNode: NewNode) = {
-    new RuntimeException(s"Cannot found node for $newNode")
+  def runtimeException(m: String) = {
+    new RuntimeException(m)
   }
 
   def gotoShutdown() = {
@@ -218,15 +237,16 @@ object NodeActor {
     case class  Persisted(node: PersistedNode)
     case object Shutdown
     case object Status
+    case class  Recovery(node: PersistedNode)
   }
 
   sealed trait State
   object State {
-    case object Idle     extends State
-    case object New      extends State
-    case object Pending  extends State
-    case object Active   extends State
-    case object Shutdown extends State
+    case object Idle       extends State
+    case object New        extends State
+    case object Pending    extends State
+    case object Active     extends State
+    case object Shutdown   extends State
   }
 
   sealed trait Data
@@ -239,10 +259,14 @@ object NodeActor {
   object Reply {
     sealed trait CreateResult
     case class CreateSuccess(node: PersistedNode) extends CreateResult
-    case class CreateFailure(e: Throwable)        extends CreateResult
+    case class CreateFailure(e: Throwable) extends CreateResult
 
     sealed trait StatusResult
-    case class StatusSuccess(state: State, data: Data)
+    case class StatusSuccess(state: State, data: Data) extends StatusResult
+
+    sealed trait RecoveryResult
+    case class RecoverySuccess(state: State) extends RecoveryResult
+    case class RecoveryFailure(e: Throwable) extends RecoveryResult
   }
 
   def props(db: NodesTable, cloud: ActorRef): Props = Props(new NodeActor(db, cloud))
