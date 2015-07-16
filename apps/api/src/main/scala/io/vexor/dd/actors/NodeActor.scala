@@ -41,7 +41,16 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   }
 
   whenUnhandled {
-    replyStatus
+    case Event(Command.Create(newNode), Data.Node(node)) =>
+      stay() replying Reply.CreateSuccess(node)
+    case Event(Command.Create(newNode), _) =>
+      stay() replying Reply.CreateFailure(new RuntimeException(s"Cannot create a new node in $stateName state"))
+    case Event(Command.Get, Data.Node(node)) =>
+      stay() replying Reply.GetSuccess(node)
+    case Event(Command.Get, _) =>
+      stay() replying Reply.GetFailure(new RuntimeException(s"Cannot get a node in $stateName state"))
+    case Event(Command.Status, data) =>
+      stay() replying Reply.StatusSuccess(stateName, data)
   }
 
   onTransition {
@@ -85,7 +94,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   // Idle
   def createNewNode: StateFunction = {
-    case Event(Command.Create(newNode), _) =>
+    case Event(Command.Create(newNode), Data.Empty) =>
       db.save(newNode) match {
         case Some(node) =>
           goto(State.New) using Data.Node(node) replying Reply.CreateSuccess(node)
@@ -214,7 +223,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         db.save(oldNode, status = NodeStatus.Finished) foreach( node => actor ! Command.Shutdown)
       case (Data.Node(oldNode), Data.Error(e)) =>
         db.save(oldNode, status = NodeStatus.Broken) foreach( node => actor ! Command.Shutdown)
-      case _ =>
+      case _ => actor ! Command.Shutdown
     }
   }
 }
@@ -231,6 +240,7 @@ object NodeActor {
 
   object Command {
     case class  Create(node: NewNode)
+    case object Get
     case object CreateInstance
     case object AwaitInstanceIsRunning
     case object AwaitInstanceTermination
@@ -267,6 +277,10 @@ object NodeActor {
     sealed trait RecoveryResult
     case class RecoverySuccess(state: State) extends RecoveryResult
     case class RecoveryFailure(e: Throwable, node: PersistedNode) extends RecoveryResult
+
+    sealed trait GetResult
+    case class GetSuccess(node: PersistedNode) extends GetResult
+    case class GetFailure(e: Throwable) extends GetResult
   }
 
   def props(db: NodesTable, cloud: ActorRef): Props = Props(new NodeActor(db, cloud))

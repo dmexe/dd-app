@@ -5,7 +5,7 @@ import java.util.{Date, UUID}
 import akka.actor.{Props, Actor, ActorLogging}
 import akka.pattern.ask
 import io.vexor.dd.Utils
-import io.vexor.dd.actors.{CloudActor, NodesActor}
+import io.vexor.dd.actors.{NodeActor, CloudActor, NodesActor}
 import io.vexor.dd.cloud.AbstractCloud
 import io.vexor.dd.models.NodesTable
 import spray.http.StatusCodes.{UnprocessableEntity, NotFound}
@@ -40,15 +40,12 @@ object NodesHandler {
 
     def putNodeAction(role: String) = {
       put {
-        complete("OK")
-        /*
-        onSuccess(nodesActor ? NodesActor.UpNode(userId, role)) {
-          case NodesActor.UpNodeSuccess(node) =>
+        onSuccess(nodesActor ? NodesActor.Command.Create(userId, role)) {
+          case NodeActor.Reply.CreateSuccess(node) =>
             complete(PutResponse(node))
-          case NodesActor.UpNodeFailure(e) =>
+          case NodeActor.Reply.CreateFailure(e) =>
             complete(UnprocessableEntity, e.getMessage)
         }
-        */
       }
     }
 

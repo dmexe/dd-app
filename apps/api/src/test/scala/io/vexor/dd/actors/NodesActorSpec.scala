@@ -61,7 +61,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val child = TestProbe()
 
       val nodesActor = system.actorOf(Props(new NodesActor(nodesTable, cloud.ref){
-        override def getNodeActor(node: NodesTable.Persisted): ActorRef = {
+        override def getNodeActor(userId: UUID, role: String): ActorRef = {
           child.ref
         }
       }))
