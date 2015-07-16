@@ -21,7 +21,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   startWith(State.Idle, Data.Empty)
 
   when(State.Idle) {
-    createNewNode orElse recoveryNode
+    awaitNodeCreation orElse awaitRecovery
   }
 
   when(State.New) {
@@ -36,19 +36,17 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
     awaitInstanceTermination orElse handlePersisted
   }
 
-  when(State.Shutdown) {
-    handleShutdown
-  }
-
   whenUnhandled {
     case Event(Command.Create(newNode), Data.Node(node)) =>
       stay() replying Reply.CreateSuccess(node)
-    case Event(Command.Create(newNode), _) =>
-      stay() replying Reply.CreateFailure(new RuntimeException(s"Cannot create a new node in $stateName state"))
+    case Event(Command.Create(newNode), data) =>
+      stay() replying Reply.CreateFailure(new RuntimeException(s"Cannot create a new node in a $stateName state with the data $data"))
+
     case Event(Command.Get, Data.Node(node)) =>
       stay() replying Reply.GetSuccess(node)
     case Event(Command.Get, _) =>
-      stay() replying Reply.GetFailure(new RuntimeException(s"Cannot get a node in $stateName state"))
+      stay() replying Reply.GetFailure(new RuntimeException(s"Cannot get a node in a $stateName state"))
+
     case Event(Command.Status, data) =>
       stay() replying Reply.StatusSuccess(stateName, data)
   }
@@ -62,9 +60,6 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
     case State.Pending -> State.Active =>
       persistNode(self, stateData, nextStateData)
-
-    case _ -> State.Shutdown  =>
-      persistAndShutdownNode(self, stateData, nextStateData)
   }
 
   onTransition {
@@ -93,18 +88,19 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   //
 
   // Idle
-  def createNewNode: StateFunction = {
+  def awaitNodeCreation: StateFunction = {
     case Event(Command.Create(newNode), Data.Empty) =>
       db.save(newNode) match {
         case Some(node) =>
           goto(State.New) using Data.Node(node) replying Reply.CreateSuccess(node)
         case None =>
           val msg = s"Cannot found saved node $newNode"
-          goto(State.Idle) using Data.Error(msg) replying Reply.CreateFailure(runtimeException(msg))
+          log.error(msg)
+          goto(State.Idle) using Data.Empty replying Reply.CreateFailure(runtimeException(msg))
       }
   }
 
-  def recoveryNode: StateFunction = {
+  def awaitRecovery: StateFunction = {
     case Event(Command.Recovery(node), _) =>
       log.info(s"Received: Command.Recovery($node)")
       node.status match {
@@ -115,8 +111,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case NodeStatus.Active =>
           goto(State.Active) using Data.Node(node) replying Reply.RecoverySuccess(State.Active)
         case unknown =>
-          val msg = s"Don't known how to recovery from $unknown"
-          goto(State.Idle) using Data.Error(msg) replying Reply.RecoveryFailure(runtimeException(msg), node)
+          val msg = s"Don't known how to recovery from a $unknown node state"
+          log.error(msg)
+          goto(State.Idle) using Data.Empty replying Reply.RecoveryFailure(runtimeException(msg), node)
       }
   }
 
@@ -130,9 +127,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
           val newNode = node.copy(status = NodeStatus.Pending, cloudId = Some(instance.id))
           goto(State.Pending) using Data.Node(newNode)
         case Success(error) =>
-          gotoShutdown(error.toString)
+          gotoShutdown(node, error.toString)
         case Failure(error) =>
-          gotoShutdown(error.toString)
+          gotoShutdown(node, error.toString)
       }
   }
 
@@ -146,9 +143,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
           stay()
         case Success(error) =>
-          gotoShutdown(error.toString)
+          gotoShutdown(node, error.toString)
         case Failure(error) =>
-          gotoShutdown(error.toString)
+          gotoShutdown(node, error.toString)
       }
   }
 
@@ -159,28 +156,16 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
         case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.On =>
           stay()
         case Success(_) =>
-          gotoShutdown()
+          gotoShutdown(node)
         case error =>
-          gotoShutdown(error.toString)
+          gotoShutdown(node, error.toString)
       }
-  }
-
-  // Shutdown
-  def handleShutdown: StateFunction = {
-    case Event(Command.Shutdown, _) =>
-      goto(State.Idle) using Data.Empty
   }
 
   // Any
   def handlePersisted: StateFunction = {
     case Event(Command.Persisted(newNode), Data.Node(_)) =>
       stay() using Data.Node(newNode)
-  }
-
-  // Unhandled
-  def replyStatus: StateFunction = {
-    case Event(Command.Status, data) =>
-      stay() replying Reply.StatusSuccess(stateName, data)
   }
 
   //
@@ -197,12 +182,16 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
     new RuntimeException(m)
   }
 
-  def gotoShutdown() = {
-    goto(State.Shutdown) using Data.Empty
+  def gotoShutdown(node: PersistedNode): State = {
+    log.info(s"Node successfuly finished")
+    db.save(node, status = NodeStatus.Finished)
+    goto(State.Idle) using Data.Empty
   }
 
-  def gotoShutdown(error: String) = {
-    goto(State.Shutdown) using Data.Error(error)
+  def gotoShutdown(node: PersistedNode, error: String): State = {
+    log.error(s"Node shutdown with error: $error")
+    db.save(node, status = NodeStatus.Broken)
+    goto(State.Idle) using Data.Empty
   }
 
   def persistNode(actor: ActorRef, oldData: Data, newData: Data): Unit = {
@@ -214,16 +203,6 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
           cloudId = newNode.cloudId
         ) foreach { node => actor ! Command.Persisted(node) }
       case _ =>
-    }
-  }
-
-  def persistAndShutdownNode(actor: ActorRef, oldData: Data, newData: Data): Unit = {
-    (oldData, newData) match {
-      case (Data.Node(oldNode), Data.Empty) =>
-        db.save(oldNode, status = NodeStatus.Finished) foreach( node => actor ! Command.Shutdown)
-      case (Data.Node(oldNode), Data.Error(e)) =>
-        db.save(oldNode, status = NodeStatus.Broken) foreach( node => actor ! Command.Shutdown)
-      case _ => actor ! Command.Shutdown
     }
   }
 }
@@ -245,7 +224,6 @@ object NodeActor {
     case object AwaitInstanceIsRunning
     case object AwaitInstanceTermination
     case class  Persisted(node: PersistedNode)
-    case object Shutdown
     case object Status
     case class  Recovery(node: PersistedNode)
   }
@@ -256,14 +234,12 @@ object NodeActor {
     case object New        extends State
     case object Pending    extends State
     case object Active     extends State
-    case object Shutdown   extends State
   }
 
   sealed trait Data
   object Data {
     case object Empty                     extends Data
     case class  Node(node: PersistedNode) extends Data
-    case class  Error(e: String)          extends Data
   }
 
   object Reply {

@@ -148,28 +148,6 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     cloudActor.reply(m)
   }
 
-  def expectShutdownWithError(nodeActor: ActorRef): Unit = {
-    // Shutdown: state must be Shutdown
-    nodeActor ! Command.Status
-    expectMsgPF(5.seconds) {
-      case Reply.StatusSuccess(State.Shutdown, Data.Error(_)) =>
-    }
-  }
-
-  def expectShutdownWithSuccess(nodeActor: ActorRef): Unit = {
-    // Shutdown: state must be Shutdown
-    nodeActor ! Command.Status
-    expectMsg(Reply.StatusSuccess(State.Shutdown, Data.Empty))
-  }
-
-  def expectIdleState(nodeActor: ActorRef): Unit = {
-    // Idle: state must be Idle
-    nodeActor ! Command.Status
-    expectMsgPF(5.seconds) {
-      case Reply.StatusSuccess(State.Idle, _) =>
-    }
-  }
-
   def assertPersistentVersions(expected: List[Tuple2[Int, String]]): Unit = {
     val versions = nodesTable.allVersionsFor(userId, role) map(v => (v.version, v.status.toString))
     assert(versions == expected)
@@ -183,6 +161,11 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     system.actorOf(inst)
   }
 
+  def expectIdleState(nodeActor: ActorRef) = {
+    nodeActor ! Command.Status
+    expectMsg(Reply.StatusSuccess(State.Idle, Data.Empty))
+  }
+
   "A NodeActor actor" must {
     "successfuly create and processing node" in {
       val cloudActor = TestProbe()
@@ -193,7 +176,6 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passNewState(cloudActor)
       passPendingState(nodeActor, cloudActor)
       passActiveState(nodeActor, cloudActor)
-      expectShutdownWithSuccess(nodeActor)
       expectIdleState(nodeActor)
 
       val expected = List((4,"Finished"), (3,"Active"), (2,"Pending"), (1,"New"))
@@ -224,7 +206,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       passIdleState(nodeActor)
       failNewStateWith(cloudActor, CloudActor.Reply.CreateFailure(new RuntimeException("noop")))
-      expectShutdownWithError(nodeActor)
+      expectIdleState(nodeActor)
 
       val expected = List((2, "Broken"),(1, "New"))
       assertPersistentVersions(expected)
@@ -236,7 +218,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       passIdleState(nodeActor)
       failNewStateWith(cloudActor, new RuntimeException("noop"))
-      expectShutdownWithError(nodeActor)
+      expectIdleState(nodeActor)
 
       val expected = List((2, "Broken"),(1, "New"))
       assertPersistentVersions(expected)
@@ -249,7 +231,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passIdleState(nodeActor)
       passNewState(cloudActor)
       failPendingWith(cloudActor, CloudActor.Reply.CreateSuccess(brokenInstance))
-      expectShutdownWithError(nodeActor)
+      expectIdleState(nodeActor)
 
       val expected = List((3, "Broken"),(2,"Pending"),(1, "New"))
       assertPersistentVersions(expected)
@@ -262,7 +244,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passIdleState(nodeActor)
       passNewState(cloudActor)
       failPendingWith(cloudActor, new RuntimeException("noop"))
-      expectShutdownWithError(nodeActor)
+      expectIdleState(nodeActor)
 
       val expected = List((3, "Broken"),(2,"Pending"),(1, "New"))
       assertPersistentVersions(expected)
@@ -276,7 +258,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passNewState(cloudActor)
       passPendingState(nodeActor, cloudActor)
       failActiveWith(nodeActor, cloudActor, CloudActor.Reply.GetSuccess(brokenInstance))
-      expectShutdownWithSuccess(nodeActor)
+      expectIdleState(nodeActor)
 
       val expected = List((4, "Finished"),(3, "Active"),(2,"Pending"),(1, "New"))
       assertPersistentVersions(expected)
@@ -290,7 +272,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passNewState(cloudActor)
       passPendingState(nodeActor, cloudActor)
       failActiveWith(nodeActor, cloudActor, new RuntimeException("noop"))
-      expectShutdownWithError(nodeActor)
+      expectIdleState(nodeActor)
 
       val expected = List((4, "Broken"),(3, "Active"),(2,"Pending"),(1, "New"))
       assertPersistentVersions(expected)
@@ -336,10 +318,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
         case NodeActor.Reply.RecoveryFailure(_, _) =>
       }
 
-      nodeActor ! Command.Status
-      expectMsgPF(5.seconds) {
-        case NodeActor.Reply.StatusSuccess(State.Idle, Data.Error(_)) =>
-      }
+      expectIdleState(nodeActor)
     }
 
     "fail to recovery actor state from Broken" in {
@@ -353,10 +332,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
         case NodeActor.Reply.RecoveryFailure(_, _) =>
       }
 
-      nodeActor ! Command.Status
-      expectMsgPF(5.seconds) {
-        case NodeActor.Reply.StatusSuccess(State.Idle, Data.Error(_)) =>
-      }
+      expectIdleState(nodeActor)
     }
   }
 }
