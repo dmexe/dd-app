@@ -1,6 +1,6 @@
-package io.vexor.dd.models
+package io.vexor.cloud.models
 
-import io.vexor.dd.TestAppEnv
+import io.vexor.cloud.TestAppEnv
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 import scala.util.{Failure, Success}

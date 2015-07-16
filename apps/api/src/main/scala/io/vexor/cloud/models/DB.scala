@@ -1,7 +1,7 @@
-package io.vexor.dd.models
+package io.vexor.cloud.models
 
 import com.datastax.driver.core.{Cluster, QueryLogger}
-import io.vexor.dd.Utils._
+import io.vexor.cloud.Utils._
 
 import scala.util.Try
 

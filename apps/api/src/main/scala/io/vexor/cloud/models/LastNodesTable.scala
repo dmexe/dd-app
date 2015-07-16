@@ -1,11 +1,11 @@
-package io.vexor.dd.models
+package io.vexor.cloud.models
 
 import java.util.{UUID,Date}
 import scala.collection.JavaConversions._
-import io.vexor.dd.Utils.StringSquish
+import io.vexor.cloud.Utils.StringSquish
 import com.datastax.driver.core.Row
-import io.vexor.dd.models.NodesTable.Status
-import io.vexor.dd.models.NodesTable.Status.Conversions.{ToInt,ToValue}
+import io.vexor.cloud.models.NodesTable.Status
+import io.vexor.cloud.models.NodesTable.Status.Conversions.{ToInt,ToValue}
 
 import scala.collection.JavaConverters._
 

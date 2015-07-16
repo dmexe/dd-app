@@ -1,10 +1,10 @@
-package io.vexor.dd.cloud
+package io.vexor.cloud.cloud
 
 import java.util.UUID
 
 import com.myjeeva.digitalocean.impl.DigitalOceanClient
 import com.myjeeva.digitalocean.pojo.{Droplet, Image, Key, Region}
-import io.vexor.dd.cloud.AbstractCloud.Status
+import io.vexor.cloud.cloud.AbstractCloud.Status
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClientBuilder}
 

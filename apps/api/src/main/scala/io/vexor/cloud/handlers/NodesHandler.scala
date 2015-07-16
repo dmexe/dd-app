@@ -1,13 +1,13 @@
-package io.vexor.dd.handlers
+package io.vexor.cloud.handlers
 
 import java.util.{Date, UUID}
 
 import akka.actor.{Props, Actor, ActorLogging}
 import akka.pattern.ask
-import io.vexor.dd.Utils
-import io.vexor.dd.actors.{NodeActor, CloudActor, NodesActor}
-import io.vexor.dd.cloud.AbstractCloud
-import io.vexor.dd.models.NodesTable
+import io.vexor.cloud.Utils
+import io.vexor.cloud.actors.{NodeActor, CloudActor, NodesActor}
+import io.vexor.cloud.cloud.AbstractCloud
+import io.vexor.cloud.models.NodesTable
 import spray.http.StatusCodes.{UnprocessableEntity, NotFound}
 import spray.routing.HttpService
 

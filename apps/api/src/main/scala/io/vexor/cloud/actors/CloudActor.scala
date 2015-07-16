@@ -1,10 +1,10 @@
-package io.vexor.dd.actors
+package io.vexor.cloud.actors
 
 import java.util.UUID
 
 import akka.actor.{FSM, Props, ActorLogging}
 import scala.concurrent.duration.DurationInt
-import io.vexor.dd.cloud.AbstractCloud
+import io.vexor.cloud.cloud.AbstractCloud
 
 import scala.util.{Success,Failure}
 

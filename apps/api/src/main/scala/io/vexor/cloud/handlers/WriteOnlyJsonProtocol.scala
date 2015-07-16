@@ -1,4 +1,4 @@
-package io.vexor.dd.handlers
+package io.vexor.cloud.handlers
 
 import spray.json._
 

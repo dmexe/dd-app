@@ -1,11 +1,11 @@
-package io.vexor.dd.actors
+package io.vexor.cloud.actors
 
 import java.util.UUID
 
 import akka.actor.{ActorRef, Props, ActorSystem}
 import akka.testkit.{TestKit, TestProbe, ImplicitSender, TestKitBase}
-import io.vexor.dd.TestAppEnv
-import io.vexor.dd.models.{NodesTable, DB}
+import io.vexor.cloud.TestAppEnv
+import io.vexor.cloud.models.{NodesTable, DB}
 import scala.concurrent.duration.DurationInt
 import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecLike}
 

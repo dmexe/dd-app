@@ -1,11 +1,11 @@
-package io.vexor.dd.actors
+package io.vexor.cloud.actors
 
 import akka.actor.FSM
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import io.vexor.dd.cloud.AbstractCloud
-import io.vexor.dd.models.NodesTable
+import io.vexor.cloud.cloud.AbstractCloud
+import io.vexor.cloud.models.NodesTable
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import scala.util.{Failure, Try, Success}

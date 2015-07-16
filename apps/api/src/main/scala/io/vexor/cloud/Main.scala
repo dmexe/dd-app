@@ -1,9 +1,9 @@
-package io.vexor.dd
+package io.vexor.cloud
 
 import akka.pattern.ask
-import io.vexor.dd.actors.MainActor
-import io.vexor.dd.models.{NodesTable, DB}
-import io.vexor.dd.cloud.{DigitalOceanCloud, AbstractCloud}
+import io.vexor.cloud.actors.MainActor
+import io.vexor.cloud.models.{NodesTable, DB}
+import io.vexor.cloud.cloud.{DigitalOceanCloud, AbstractCloud}
 
 import scala.util.Failure
 

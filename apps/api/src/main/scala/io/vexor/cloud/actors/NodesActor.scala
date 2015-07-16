@@ -1,11 +1,11 @@
-package io.vexor.dd.actors
+package io.vexor.cloud.actors
 
 import java.util.UUID
 
 import akka.actor.FSM.NullFunction
 import akka.pattern.ask
 import akka.actor.{ActorRef, FSM, Props, ActorLogging}
-import io.vexor.dd.models.NodesTable
+import io.vexor.cloud.models.NodesTable
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await,Future}
 import scala.util.{Try,Success,Failure}

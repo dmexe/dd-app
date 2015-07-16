@@ -1,4 +1,4 @@
-package io.vexor.dd.cloud
+package io.vexor.cloud.cloud
 
 import java.util.UUID
 

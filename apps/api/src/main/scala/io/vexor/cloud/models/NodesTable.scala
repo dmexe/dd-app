@@ -1,11 +1,11 @@
-package io.vexor.dd.models
+package io.vexor.cloud.models
 
 import java.util.{Date, UUID}
 
 import scala.collection.JavaConversions._
 
 import com.datastax.driver.core.{Row, Session}
-import io.vexor.dd.Utils.StringSquish
+import io.vexor.cloud.Utils.StringSquish
 
 class NodesTable(db: Session, tableName: String) extends  {
 

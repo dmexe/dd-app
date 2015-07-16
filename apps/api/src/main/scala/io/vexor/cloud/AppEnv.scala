@@ -1,4 +1,4 @@
-package io.vexor.dd
+package io.vexor.cloud
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory

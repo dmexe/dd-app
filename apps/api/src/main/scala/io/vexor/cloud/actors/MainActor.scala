@@ -1,11 +1,11 @@
-package io.vexor.dd.actors
+package io.vexor.cloud.actors
 
 import akka.actor.{ActorRef, Props, ActorLogging, Actor}
 import akka.pattern.ask
-import io.vexor.dd.handlers.NodesHandler
-import io.vexor.dd.models.{NodesTable, DB}
-import io.vexor.dd.cloud.AbstractCloud
-import io.vexor.dd.Utils
+import io.vexor.cloud.handlers.NodesHandler
+import io.vexor.cloud.models.{NodesTable, DB}
+import io.vexor.cloud.cloud.AbstractCloud
+import io.vexor.cloud.Utils
 import akka.io.IO
 import spray.can.Http
 

@@ -1,10 +1,10 @@
-package io.vexor.dd.models
+package io.vexor.cloud.models
 
 import java.util.UUID
 
-import io.vexor.dd.TestAppEnv
+import io.vexor.cloud.TestAppEnv
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import io.vexor.dd.models.NodesTable.Status
+import io.vexor.cloud.models.NodesTable.Status
 
 class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
   val userId  = new UUID(0,0)

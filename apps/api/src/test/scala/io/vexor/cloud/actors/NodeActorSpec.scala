@@ -1,15 +1,15 @@
-package io.vexor.dd.actors
+package io.vexor.cloud.actors
 
 import java.util.UUID
 
 import akka.actor.{Props, ActorRef, ActorSystem}
 import akka.testkit._
-import io.vexor.dd.TestAppEnv
-import io.vexor.dd.cloud.{TestCloud, AbstractCloud}
-import io.vexor.dd.models.{NodesTable, DB}
+import io.vexor.cloud.TestAppEnv
+import io.vexor.cloud.cloud.{TestCloud, AbstractCloud}
+import io.vexor.cloud.models.{NodesTable, DB}
 import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecLike}
 import scala.concurrent.duration.DurationInt
-import io.vexor.dd.actors.NodeActor.{Command,Reply,State,Data}
+import io.vexor.cloud.actors.NodeActor.{Command,Reply,State,Data}
 
 class NodeActorSpec extends TestKitBase with ImplicitSender
 with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with TestAppEnv {
