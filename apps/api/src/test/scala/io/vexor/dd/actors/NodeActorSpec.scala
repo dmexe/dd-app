@@ -178,7 +178,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
   def getNodeActor(db: NodesTable, cloud: ActorRef): ActorRef = {
     val inst = Props(new NodeActor(db, cloud) {
-      override val timerTicks = 300.millis
+      override val tickInterval = 300.millis
     })
     system.actorOf(inst)
   }

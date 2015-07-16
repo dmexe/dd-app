@@ -2,50 +2,120 @@ package io.vexor.dd.actors
 
 import java.util.UUID
 
-import akka.actor.{Props, ActorLogging, Actor}
+import akka.actor.{FSM, Props, ActorLogging}
 import scala.concurrent.duration.DurationInt
 import io.vexor.dd.cloud.AbstractCloud
 
-class CloudActor(cloud: AbstractCloud) extends Actor with ActorLogging {
+import scala.util.{Success,Failure}
 
+class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.Data] with ActorLogging {
 
-  import context.dispatcher
   import CloudActor._
 
-  var instances = List.empty[Instance]
-  val tick      = context.system.scheduler.schedule(0.seconds, 45.seconds, self, Command.Tick)
+  val tickInterval = 45.seconds
 
-  def tickAction(): Unit = {
-    cloud.all() foreach { re =>
-      instances = re
-    }
+  startWith(State.Idle, Data.Empty)
+
+  when(State.Idle) {
+    awaitStart
   }
 
-  def getAllAction(): GetAllResult = {
-    GetAllSuccess(instances)
+  when(State.Active) {
+    awaitCreate orElse awaitGetInstance orElse awaitTick
   }
 
-  def receive = {
-    case Command.Tick =>
-      tickAction()
-    case GetAll() =>
-      sender() ! getAllAction()
+  onTransition {
+    case _ -> State.Active =>
+      setTimer("tick", Command.Tick, tickInterval, repeat = true)
+    case State.Active -> _ =>
+      cancelTimer("tick")
+  }
+
+  onTransition {
+    case a -> b =>
+      log.info(s"Transition $a -> $b using $nextStateData")
+  }
+
+  def awaitStart: StateFunction = {
+    case Event(Command.Start, _) =>
+      cloud.all() match {
+        case Success(instances: InstanceList) =>
+          goto(State.Active) using Data.Instances(instances) replying Reply.StartSuccess
+        case error =>
+          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(new RuntimeException(error.toString))
+      }
+  }
+
+  def awaitCreate: StateFunction = {
+    case Event(Command.Create(userId, role), _) =>
+      val reply: Reply.CreateResult =
+        cloud.create(userId, role, 1) match {
+          case Success(instance: Instance) =>
+            Reply.CreateSuccess(instance)
+          case Failure(error) =>
+            Reply.CreateFailure(error)
+      }
+      stay() replying reply
+  }
+
+  def awaitTick: StateFunction = {
+    case Event(Command.Tick, Data.Instances(oldInstances)) =>
+      val newInstances =
+        cloud.all() match {
+          case Success(i: InstanceList) => i
+          case _ => oldInstances
+        }
+      if (newInstances == oldInstances) {
+        stay()
+      } else {
+        goto(State.Active) using Data.Instances(newInstances)
+      }
+  }
+
+  def awaitGetInstance: StateFunction = {
+    case Event(Command.Get(instanceId), Data.Instances(instances)) =>
+      val re =
+        instances.find { instance =>
+          instance.id == instanceId
+        } map Reply.GetSuccess getOrElse {
+          Reply.GetFailure(new RuntimeException(s"Cannot found instance with id=$instanceId"))
+        }
+      stay() replying re
   }
 }
 
 object CloudActor {
 
   type Instance = AbstractCloud.Instance
+  type InstanceList = List[AbstractCloud.Instance]
 
   def props(cloud: AbstractCloud): Props = Props(new CloudActor(cloud))
 
+  sealed trait State
+  object State {
+    case object Idle extends State
+    case object Active extends State
+  }
+
+  sealed trait Data
+  object Data {
+    case object Empty extends Data
+    case class Error(e: String) extends Data
+    case class Instances(instances: InstanceList) extends Data
+  }
+
   object Command {
+    case object Start
     case class  Create(userId: UUID, role: String)
     case object Tick
     case class  Get(id: String)
   }
 
   object Reply {
+    sealed trait StartResult
+    case object StartSuccess extends StartResult
+    case class  StartFailure(e: Throwable) extends StartResult
+
     sealed trait CreateResult
     case class CreateSuccess(instance: Instance) extends CreateResult
     case class CreateFailure(e: Throwable)       extends CreateResult
@@ -54,8 +124,4 @@ object CloudActor {
     case class GetSuccess(instance: Instance)    extends GetResult
     case class GetFailure(e: Throwable)          extends GetResult
   }
-
-  case class GetAll()
-  sealed trait GetAllResult
-  case class GetAllSuccess(instances: List[Instance]) extends GetAllResult
 }

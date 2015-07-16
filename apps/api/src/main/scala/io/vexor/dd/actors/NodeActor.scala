@@ -14,9 +14,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   import NodeActor._
 
-  implicit val timeout = Timeout(10.seconds)
+  implicit val timeout = Timeout(5.seconds)
 
-  val timerTicks = 5.seconds
+  val tickInterval = 5.seconds
 
   startWith(State.Idle, Data.Empty)
 
@@ -60,14 +60,14 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   onTransition {
     case _ -> State.Pending =>
-      setTimer("awaitInstanceIsRunning", Command.AwaitInstanceIsRunning, timerTicks, repeat = true)
+      setTimer("awaitInstanceIsRunning", Command.AwaitInstanceIsRunning, tickInterval, repeat = true)
     case State.Pending -> _ =>
       cancelTimer("awaitInstanceIsRunning")
   }
 
   onTransition {
     case _ -> State.Active =>
-      setTimer("awaitInstanceTermination", Command.AwaitInstanceTermination, timerTicks, repeat = true)
+      setTimer("awaitInstanceTermination", Command.AwaitInstanceTermination, tickInterval, repeat = true)
     case State.Active -> _ =>
       cancelTimer("awaitInstanceTermination")
   }
