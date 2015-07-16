@@ -8,7 +8,7 @@ import io.vexor.cloud.cloud.AbstractCloud
 import io.vexor.cloud.models.NodesTable
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
-import scala.util.{Failure, Try, Success}
+import scala.util.{Try, Success}
 
 class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.State, NodeActor.Data] with ActorLogging {
 
@@ -172,10 +172,6 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
     val id = node.cloudId.getOrElse("")
     val fu = cloudActor ? CloudCommand.Get(id)
     Try { Await.result(fu, timeout.duration).asInstanceOf[CloudReply.GetResult] }
-  }
-
-  def runtimeException(m: String) = {
-    new RuntimeException(m)
   }
 
   def gotoShutdown(node: PersistedNode): State = {
