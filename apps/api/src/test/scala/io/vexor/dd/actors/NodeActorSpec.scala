@@ -333,7 +333,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       nodeActor ! NodeActor.Command.Recovery(node)
       expectMsgPF(5.seconds) {
-        case NodeActor.Reply.RecoveryFailure(_) =>
+        case NodeActor.Reply.RecoveryFailure(_, _) =>
       }
 
       nodeActor ! Command.Status
@@ -350,7 +350,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       nodeActor ! NodeActor.Command.Recovery(node)
       expectMsgPF(5.seconds) {
-        case NodeActor.Reply.RecoveryFailure(_) =>
+        case NodeActor.Reply.RecoveryFailure(_, _) =>
       }
 
       nodeActor ! Command.Status

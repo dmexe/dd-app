@@ -105,9 +105,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
           goto(State.Pending) using Data.Node(node) replying Reply.RecoverySuccess(State.Pending)
         case NodeStatus.Active =>
           goto(State.Active) using Data.Node(node) replying Reply.RecoverySuccess(State.Active)
-        case error =>
-          val msg = s"Don't known how to recovery from $error"
-          goto(State.Idle) using Data.Error(msg) replying Reply.RecoveryFailure(runtimeException(msg))
+        case unknown =>
+          val msg = s"Don't known how to recovery from $unknown"
+          goto(State.Idle) using Data.Error(msg) replying Reply.RecoveryFailure(runtimeException(msg), node)
       }
   }
 
@@ -266,7 +266,7 @@ object NodeActor {
 
     sealed trait RecoveryResult
     case class RecoverySuccess(state: State) extends RecoveryResult
-    case class RecoveryFailure(e: Throwable) extends RecoveryResult
+    case class RecoveryFailure(e: Throwable, node: PersistedNode) extends RecoveryResult
   }
 
   def props(db: NodesTable, cloud: ActorRef): Props = Props(new NodeActor(db, cloud))
