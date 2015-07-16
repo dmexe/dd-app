@@ -37,7 +37,11 @@ class MainActor(db: DB.Session, cloud: AbstractCloud) extends Actor with ActorLo
       cloudActor = Option(context.actorOf(CloudActor.props(cloud),         "cloud"))
       httpActor  = Option(context.actorOf(NodesHandler.props,              "http"))
       cloudActor foreach {actor =>
-        nodesActor = Option(context.actorOf(NodesActor.props(nodesTable, actor), "nodes"))
+        actor ? CloudActor.Command.Start
+        nodesActor = Option(context.actorOf(NodesActor.props(nodesTable, actor), "nodes")) map { a =>
+          a ? NodesActor.Command.Start
+          a
+        }
       }
 
       httpActor map { actor =>

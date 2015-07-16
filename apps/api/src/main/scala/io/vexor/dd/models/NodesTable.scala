@@ -88,13 +88,15 @@ class NodesTable(db: Session, tableName: String) extends  {
         status
       }
 
+    val newCloudId = cloudId orElse prev.cloudId
+
     db.execute(
       s"INSERT INTO $tableName (user_id, role, version, status, cloud_id, created_at) VALUES (?, ?, ?, ?, ?, dateOf(now()))",
       prev.userId,
       prev.role,
       version: Integer,
       newStatus.toInt,
-      cloudId.orNull
+      newCloudId.orNull
     )
 
     for {

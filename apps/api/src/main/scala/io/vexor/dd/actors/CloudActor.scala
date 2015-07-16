@@ -47,15 +47,15 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
   }
 
   def awaitCreate: StateFunction = {
-    case Event(Command.Create(userId, role), _) =>
-      val reply: Reply.CreateResult =
-        cloud.create(userId, role, 1) match {
-          case Success(instance: Instance) =>
-            Reply.CreateSuccess(instance)
-          case Failure(error) =>
-            Reply.CreateFailure(error)
+    case Event(Command.Create(userId, role), Data.Instances(instances)) =>
+      cloud.create(userId, role, 1) match {
+        case Success(instance: Instance) =>
+          val newInstances = instances ++ List(instance)
+          logInstances(newInstances)
+          stay() using Data.Instances(newInstances) replying Reply.CreateSuccess(instance)
+        case Failure(error) =>
+          stay() replying Reply.CreateFailure(error)
       }
-      stay() replying reply
   }
 
   def awaitTick: StateFunction = {
@@ -65,10 +65,11 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
           case Success(i: InstanceList) => i
           case _ => oldInstances
         }
-      if (newInstances == oldInstances) {
-        stay()
+      if (newInstances != oldInstances) {
+        logInstances(newInstances)
+        stay() using Data.Instances(newInstances)
       } else {
-        goto(State.Active) using Data.Instances(newInstances)
+        stay()
       }
   }
 
@@ -81,6 +82,10 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
           Reply.GetFailure(new RuntimeException(s"Cannot found instance with id=$instanceId"))
         }
       stay() replying re
+  }
+
+  def logInstances(instances: InstanceList): Unit = {
+    log.info(s"Replace instances list with $instances")
   }
 }
 

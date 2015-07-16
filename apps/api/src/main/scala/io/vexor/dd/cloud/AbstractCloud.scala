@@ -19,7 +19,7 @@ object AbstractCloud {
     val Pending, On, Off, Broken = Value
   }
 
-  trait Instance {
+  abstract class Instance {
     val id:      String
     val name:    String
     val userId:  UUID

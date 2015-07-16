@@ -51,15 +51,12 @@ object NodesHandler {
 
     def getNodeAction(role: String) = {
       get {
-        complete("OK")
-        /*
-        onSuccess(nodesActor ? NodesActor.GetNode(userId, role)) {
-          case NodesActor.GetNodeSuccess(node) =>
+        onSuccess(nodesActor ? NodesActor.Command.Get(userId, role)) {
+          case NodeActor.Reply.GetSuccess(node) =>
             complete(PutResponse(node))
-          case NodesActor.GetNodeFailure(e) =>
+          case NodeActor.Reply.GetFailure(e) =>
             complete(NotFound, e.getMessage)
         }
-        */
       }
     }
 

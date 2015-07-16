@@ -22,7 +22,7 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
   }
 
   when(State.Active) {
-    awaitCreate
+    awaitNodeActions
   }
 
   onTransition {
@@ -43,8 +43,8 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
             ask(nodeActor, NodeActor.Command.Recovery(node))(timeout).mapTo[NodeActor.Reply.RecoveryResult]
           }
         )
-      val re = Try{ Await.result(futures, timeout) }
 
+      val re = Try{ Await.result(futures, timeout) }
       re match {
         case Success(results: List[NodeActor.Reply.RecoveryResult]) =>
           processRecoveredNodeResult(results)
@@ -55,11 +55,15 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
       }
   }
 
-  def awaitCreate: StateFunction = {
+  def awaitNodeActions: StateFunction = {
     case Event(Command.Create(userId, role), _) =>
       val actor   = getNodeActor(userId, role)
       val newNode = NodesTable.New(userId, role)
       actor forward NodeActor.Command.Create(newNode)
+      stay()
+    case Event(Command.Get(userId, role), _) =>
+      val actor   = getNodeActor(userId, role)
+      actor forward NodeActor.Command.Get
       stay()
   }
 
@@ -112,6 +116,7 @@ object NodesActor {
     case object Start
     case object Recovered
     case class  Create(userId: UUID, role: String)
+    case class  Get(userId: UUID, role: String)
   }
 
   object Reply {
