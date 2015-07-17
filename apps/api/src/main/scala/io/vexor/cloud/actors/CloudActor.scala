@@ -14,7 +14,7 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
   import context.dispatcher
   import CloudActor._
 
-  val tickInterval   = 45.seconds
+  val tickInterval   = 30.seconds
   val cleanupTimeout = 1.minute
 
   startWith(State.Idle, Data.Empty)

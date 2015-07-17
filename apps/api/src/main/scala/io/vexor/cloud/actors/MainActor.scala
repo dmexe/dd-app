@@ -5,7 +5,7 @@ import akka.pattern.ask
 import io.vexor.cloud.handlers.NodesHandler
 import io.vexor.cloud.models.{NodesTable, DB}
 import io.vexor.cloud.cloud.AbstractCloud
-import io.vexor.cloud.Utils
+import io.vexor.cloud.{ConfigRegistry, Utils}
 import akka.io.IO
 import spray.can.Http
 

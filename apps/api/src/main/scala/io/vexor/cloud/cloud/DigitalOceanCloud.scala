@@ -15,7 +15,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
 import scala.util.Try
 
-class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int, size: String) extends AbstractCloud {
+class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int, size: String, cloudInit: String) extends AbstractCloud {
   import DigitalOceanCloud._
 
   lazy val api  = new DigitalOceanClient("v2", token, buildHttpClient())
@@ -26,6 +26,7 @@ class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int,
     newDroplet.setSize(size)
     newDroplet.setRegion(new Region(region))
     newDroplet.setImage(new Image(imageId))
+    newDroplet.setUserData(cloudInit)
 
     val keys = List[Key](new Key(keyId))
     newDroplet.setKeys(keys)

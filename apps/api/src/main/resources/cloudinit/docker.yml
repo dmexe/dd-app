@@ -1,0 +1,32 @@
+#cloud-config
+
+# set docker options, enabling https
+write_files:
+  - path: /etc/ssl/docker/ca.pem
+    owner: root:docker
+    permissions: "0750"
+    content: |
+      %DOCKER_CA_PEM%
+  - path: /etc/ssl/docker/server-cert.pem
+    owner: root:docker
+    permissions: "0750"
+    content: |
+      %DOCKER_SERVER_CERT_PEM%
+  - path: /etc/ssl/docker/server-key.pem
+    owner: root:docker
+    permissions: "0750"
+    content: |
+      %DOCKER_SERVER_KEY_PEM%
+
+coreos:
+  units:
+    - name: docker.service
+      drop-ins:
+        - name: tls.conf
+          content: |
+            [Service]
+            Environment="DOCKER_OPTS=--host=tcp://0.0.0.0:2376 --tlsverify --tlscacert=/etc/ssl/docker/ca.pem --tlscert=/etc/ssl/docker/server-cert.pem --tlskey=/etc/ssl/docker/server-key.pem"
+
+    - name: docker.service
+      command: start
+      enable: true

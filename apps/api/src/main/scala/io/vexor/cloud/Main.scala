@@ -23,19 +23,25 @@ object Main extends App with AppEnv {
     db.get
   }
 
-  def initCloud() : AbstractCloud = {
+  def initCloud(reg: ConfigRegistry) : AbstractCloud = {
     new DigitalOceanCloud(
       appConfig.getString("cloud.digitalocean.token"),
       appConfig.getString("cloud.digitalocean.region"),
       appConfig.getInt("cloud.digitalocean.imageId"),
       appConfig.getInt("cloud.digitalocean.keyId"),
-      appConfig.getString("cloud.digitalocean.size")
+      appConfig.getString("cloud.digitalocean.size"),
+      reg.cloudInitDocker
     )
   }
 
+  def initConfigRegistry() = {
+    ConfigRegistry.load(caDir, cloudInitDir)
+  }
+
   def initMainActor() = {
+    val reg   = initConfigRegistry()
     val db    = initDb()
-    val cloud = initCloud()
+    val cloud = initCloud(reg.get)
     system.actorOf(MainActor.props(db, cloud), "main")
   }
 
