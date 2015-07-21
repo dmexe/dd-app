@@ -10,7 +10,9 @@ trait AppEnv {
   lazy val appConfig = ConfigFactory.load(appEnv)
   lazy val dbUrl     = appConfig.getString("db.url")
 
-  def appEnv       = Properties.envOrElse("APP_ENV", "development")
-  def caDir        = Properties.envOrElse("APP_CA_DIR", "ca")
+  def appEnv       = Properties.envOrElse("APP_ENV",           "development")
+  def caDir        = Properties.envOrElse("APP_CA_DIR",        "ca")
   def cloudInitDir = Properties.envOrElse("APP_CLOUDINIT_DIR", "cloudinit")
+  def clientCa     = Properties.envOrElse("CLIENT_CA",         "ca")
+  def clientCaPass = Properties.envOrElse("CLIENT_CA_PASS",    "foobar")
 }
