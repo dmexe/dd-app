@@ -48,16 +48,16 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
         Future.sequence(
           nodes.map { node =>
             val nodeActor = getNodeActor(node.userId, node.role)
-            ask(nodeActor, NodeActor.Command.Recovery(node))(timeout).mapTo[NodeActor.Reply.RecoveryResult]
+            ask(nodeActor, NodeActor.Command.Recovery(node))(timeout).mapTo[NodeActor.RecoveryReply]
           }
         )
 
       val re = Try{ Await.result(futures, timeout) }
       re match {
-        case Success(results: List[NodeActor.Reply.RecoveryResult]) =>
+        case Success(results: List[NodeActor.RecoveryReply]) =>
           processRecoveredNodeResult(results)
         case error =>
-          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(error.toString)
+          goto(State.Idle) using Data.Error(error.toString) replying StartFailure(error.toString)
       }
   }
 
@@ -83,16 +83,16 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
   //
   //
 
-  def processRecoveredNodeResult(results: List[NodeActor.Reply.RecoveryResult]): State = {
+  def processRecoveredNodeResult(results: List[NodeActor.RecoveryReply]): State = {
     if(results.nonEmpty) {
       results.foreach {
-        case NodeActor.Reply.RecoveryFailure(e, node) =>
+        case NodeActor.RecoveryFailure(e, node) =>
           log.error(s"Recovery failure: $e [node=$node]")
         case _ =>
       }
       log.info(s"Successfuly recovered ${results.size} nodes")
     }
-    goto(State.Active) using Data.Empty replying Reply.StartSuccess
+    goto(State.Active) using Data.Empty replying StartSuccess
   }
 
   def getNodeActor(userId: UUID, role: String): ActorRef = {
@@ -131,15 +131,13 @@ object NodesActor {
     case object Tick
   }
 
-  object Reply {
-    sealed trait StartResult
-    case object StartSuccess extends StartResult
-    case class StartFailure(e: String) extends StartResult
+  sealed trait StartReply
+  case object StartSuccess extends StartReply
+  case class StartFailure(e: String) extends StartReply
 
-    sealed trait CreateResult
-    case class CreateSuccess(node: PersistedNode) extends CreateResult
-    case class CreateFailure(e: String) extends CreateResult
-  }
+  sealed trait CreateReply
+  case class CreateSuccess(node: PersistedNode) extends CreateReply
+  case class CreateFailure(e: String) extends CreateReply
 
   def props(db: NodesTable, cloud: ActorRef) : Props = Props(new NodesActor(db, cloud))
 }

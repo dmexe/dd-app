@@ -43,9 +43,9 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
     case Event(Command.Start, _) =>
       cloud.all() match {
         case Success(instances: InstanceList) =>
-          goto(State.Active) using Data.Instances(instances) replying Reply.StartSuccess
+          goto(State.Active) using Data.Instances(instances) replying StartSuccess
         case error =>
-          goto(State.Idle) using Data.Error(error.toString) replying Reply.StartFailure(error.toString)
+          goto(State.Idle) using Data.Error(error.toString) replying StartFailure(error.toString)
       }
   }
 
@@ -55,9 +55,9 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
         case Success(instance: Instance) =>
           val newInstances = instances ++ List(instance)
           logInstances(newInstances)
-          stay() using Data.Instances(newInstances) replying Reply.CreateSuccess(instance)
+          stay() using Data.Instances(newInstances) replying CreateSuccess(instance)
         case error =>
-          stay() replying Reply.CreateFailure(error.toString)
+          stay() replying CreateFailure(error.toString)
       }
   }
 
@@ -80,8 +80,8 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
     case Event(Command.Get(instanceId), Data.Instances(instances)) =>
       val re = instances
         .find      ( _.id == instanceId)
-        .map       ( Reply.GetSuccess  )
-        .getOrElse ( Reply.GetFailure(s"Cannot found instance [id=$instanceId]") )
+        .map       ( GetSuccess  )
+        .getOrElse ( GetFailure(s"Cannot found instance [id=$instanceId]") )
 
       stay() replying re
   }
@@ -124,8 +124,8 @@ object CloudActor {
   sealed trait Data
   object Data {
     case object Empty extends Data
-    case class Error(e: String) extends Data
-    case class Instances(instances: InstanceList) extends Data
+    case class  Error(e: String) extends Data
+    case class  Instances(instances: InstanceList) extends Data
   }
 
   object Command {
@@ -136,17 +136,15 @@ object CloudActor {
     case class  Cleanup(existingInstanceIds: List[String])
   }
 
-  object Reply {
-    sealed trait StartResult
-    case object StartSuccess extends StartResult
-    case class  StartFailure(e: String) extends StartResult
+  sealed trait StartReply
+  case object StartSuccess extends StartReply
+  case class  StartFailure(e: String) extends StartReply
 
-    sealed trait CreateResult
-    case class CreateSuccess(instance: Instance) extends CreateResult
-    case class CreateFailure(e: String)          extends CreateResult
+  sealed trait CreateReply
+  case class CreateSuccess(instance: Instance) extends CreateReply
+  case class CreateFailure(e: String)          extends CreateReply
 
-    sealed trait GetResult
-    case class GetSuccess(instance: Instance)    extends GetResult
-    case class GetFailure(e: String)             extends GetResult
-  }
+  sealed trait GetReply
+  case class GetSuccess(instance: Instance)    extends GetReply
+  case class GetFailure(e: String)             extends GetReply
 }

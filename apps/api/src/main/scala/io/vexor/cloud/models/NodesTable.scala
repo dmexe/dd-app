@@ -7,6 +7,8 @@ import scala.collection.JavaConversions._
 import com.datastax.driver.core.{Row, Session}
 import io.vexor.cloud.Utils.StringSquish
 
+import scala.util.Try
+
 class NodesTable(db: Session, tableName: String) extends  {
 
   import NodesTable._
@@ -15,7 +17,7 @@ class NodesTable(db: Session, tableName: String) extends  {
   val lastTableName    = s"last_$tableName"
   val versionTableName = s"version_$tableName"
 
-  def up() {
+  def up(): Try[Boolean] = {
     val sql = Seq(
       s"""
         CREATE TABLE IF NOT EXISTS $versionTableName (
@@ -41,7 +43,10 @@ class NodesTable(db: Session, tableName: String) extends  {
         """.squish,
       s"CREATE INDEX IF NOT EXISTS ${lastTableName}_on_status_idx ON $lastTableName (status)"
     )
-    sql.map(db.execute)
+    Try {
+      sql.map(db.execute)
+      true
+    }
   }
 
   def down() {
@@ -229,8 +234,4 @@ object NodesTable extends {
     cloudId:   Option[String],
     createdAt: Date
   ) extends Record
-
-  def apply(session: Session): NodesTable = {
-    new NodesTable(session, tableName = TABLE_NAME)
-  }
 }

@@ -42,7 +42,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val nodesActor = system.actorOf(NodesActor.props(nodesTable, cloud.ref))
 
       nodesActor ! NodesActor.Command.Start
-      expectMsg(NodesActor.Reply.StartSuccess)
+      expectMsg(NodesActor.StartSuccess)
     }
 
     "successfuly start with some nodes through recovery" in {
@@ -53,7 +53,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val nodesActor = system.actorOf(NodesActor.props(nodesTable, cloud.ref))
 
       nodesActor ! NodesActor.Command.Start
-      expectMsg(NodesActor.Reply.StartSuccess)
+      expectMsg(NodesActor.StartSuccess)
     }
 
     "fail to start with error in recovery" in {
@@ -76,7 +76,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       child.reply(new RuntimeException("noop"))
 
       expectMsgPF(3.seconds) {
-        case NodesActor.Reply.StartFailure(_) =>
+        case NodesActor.StartFailure(_) =>
       }
     }
   }

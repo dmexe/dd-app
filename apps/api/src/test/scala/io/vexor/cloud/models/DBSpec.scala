@@ -27,7 +27,7 @@ class DBSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with Test
         case unknown    => fail(unknown.toString)
       }
 
-      assert(db.isOpen == false)
+      assert(!db.isOpen)
     }
   }
 }

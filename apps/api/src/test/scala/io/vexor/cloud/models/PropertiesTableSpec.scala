@@ -4,8 +4,8 @@ import io.vexor.cloud.TestAppEnv
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class PropertiesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
-  val _db     = new DB(dbUrl)
-  val db      = PropertiesTable(_db.open().get)
+  val reg = ModelRegistry(dbUrl, "PropertiesTableSpec").get
+  val db  = reg.properties
 
   override def beforeAll() : Unit = {
     db.down()
@@ -14,7 +14,7 @@ class PropertiesTableSpec extends WordSpecLike with Matchers with BeforeAndAfter
 
   override def afterAll() : Unit = {
     db.down()
-    _db.close()
+    reg.db.close()
   }
 
   "A PropertiesTable" must {

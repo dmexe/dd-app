@@ -8,8 +8,8 @@ import io.vexor.cloud.models.NodesTable.Status
 
 class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
   val userId  = new UUID(0,0)
-  val _db     = new DB(dbUrl)
-  val db      = NodesTable(_db.open().get)
+  val reg     = ModelRegistry(dbUrl, "NodesTableSpec").get
+  val db      = reg.nodes
 
   override def beforeAll() : Unit = {
     db.down()
@@ -18,7 +18,7 @@ class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll w
 
   override def afterAll() : Unit = {
     db.down()
-    _db.close()
+    reg.db.close()
   }
 
   "A NodeTable" must {

@@ -38,17 +38,17 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
 
   whenUnhandled {
     case Event(Command.Create(newNode), Data.Node(node)) =>
-      stay() replying Reply.CreateSuccess(node)
+      stay() replying CreateSuccess(node)
     case Event(Command.Create(newNode), data) =>
-      stay() replying Reply.CreateFailure(s"Cannot create a new node in a $stateName state with the data $data")
+      stay() replying CreateFailure(s"Cannot create a new node in a $stateName state with the data $data")
 
     case Event(Command.Get, Data.Node(node)) =>
-      stay() replying Reply.GetSuccess(node)
+      stay() replying GetSuccess(node)
     case Event(Command.Get, data) =>
-      stay() replying Reply.GetFailure(s"Cannot get a node in a $stateName state with the $data")
+      stay() replying GetFailure(s"Cannot get a node in a $stateName state with the $data")
 
     case Event(Command.Status, data) =>
-      stay() replying Reply.StatusSuccess(stateName, data)
+      stay() replying StatusSuccess(stateName, data)
   }
 
   onTransition {
@@ -92,11 +92,11 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
     case Event(Command.Create(newNode), Data.Empty) =>
       db.save(newNode) match {
         case Some(node) =>
-          goto(State.New) using Data.Node(node) replying Reply.CreateSuccess(node)
+          goto(State.New) using Data.Node(node) replying CreateSuccess(node)
         case None =>
           val msg = s"Cannot fetch created record [node=$newNode]"
           log.error(msg)
-          goto(State.Idle) using Data.Empty replying Reply.CreateFailure(msg)
+          goto(State.Idle) using Data.Empty replying CreateFailure(msg)
       }
   }
 
@@ -105,15 +105,15 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
       log.info(s"Received recovery [node=$node]")
       node.status match {
         case NodeStatus.New =>
-          goto(State.New) using Data.Node(node) replying Reply.RecoverySuccess(State.New)
+          goto(State.New) using Data.Node(node) replying RecoverySuccess(State.New)
         case NodeStatus.Pending =>
-          goto(State.Pending) using Data.Node(node) replying Reply.RecoverySuccess(State.Pending)
+          goto(State.Pending) using Data.Node(node) replying RecoverySuccess(State.Pending)
         case NodeStatus.Active =>
-          goto(State.Active) using Data.Node(node) replying Reply.RecoverySuccess(State.Active)
+          goto(State.Active) using Data.Node(node) replying RecoverySuccess(State.Active)
         case unknown =>
           val msg = s"Don't known how to recovery from a $unknown node state"
           log.error(msg)
-          goto(State.Idle) using Data.Empty replying Reply.RecoveryFailure(msg, node)
+          goto(State.Idle) using Data.Empty replying RecoveryFailure(msg, node)
       }
   }
 
@@ -121,9 +121,9 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   def createInstanceForNode: StateFunction = {
     case Event(Command.CreateInstance, Data.Node(node)) =>
       val fu = cloudActor ? CloudCommand.Create(node.userId, node.role, node.version)
-      val re = Try { Await.result(fu, timeout.duration).asInstanceOf[CloudReply.CreateResult] }
+      val re = Try { Await.result(fu, timeout.duration).asInstanceOf[CloudActor.CreateReply] }
       re match {
-        case Success(CloudReply.CreateSuccess(instance)) =>
+        case Success(CloudActor.CreateSuccess(instance)) =>
           val newNode = node.copy(status = NodeStatus.Pending, cloudId = Some(instance.id))
           goto(State.Pending) using Data.Node(newNode)
         case error =>
@@ -135,10 +135,10 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   def awaitInstanceIsRunning: StateFunction = {
     case Event(Command.AwaitInstanceIsRunning, Data.Node(node)) =>
       getInstance(node) match {
-        case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.On =>
+        case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.On =>
           val activeNode = node.copy(status = NodeStatus.Active)
           goto(State.Active) using Data.Node(activeNode)
-        case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
+        case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
           stay()
         case error =>
           gotoShutdown(node, error.toString)
@@ -149,7 +149,7 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   def awaitInstanceTermination: StateFunction = {
     case Event(Command.AwaitInstanceTermination, Data.Node(node)) =>
       getInstance(node) match {
-        case Success(CloudReply.GetSuccess(instance)) if instance.status == CloudStatus.On =>
+        case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.On =>
           stay()
         case error =>
           gotoShutdown(node, error.toString)
@@ -166,10 +166,10 @@ class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.Stat
   // Helpers
   //
 
-  def getInstance(node: PersistedNode): Try[CloudReply.GetResult] = {
+  def getInstance(node: PersistedNode): Try[CloudActor.GetReply] = {
     val id = node.cloudId.getOrElse("")
     val fu = cloudActor ? CloudCommand.Get(id)
-    Try { Await.result(fu, timeout.duration).asInstanceOf[CloudReply.GetResult] }
+    Try { Await.result(fu, timeout.duration).asInstanceOf[CloudActor.GetReply] }
   }
 
   def gotoShutdown(node: PersistedNode, status: CloudStatus.Value): State = {
@@ -205,7 +205,6 @@ object NodeActor {
 
   val  CloudStatus   = AbstractCloud.Status
   val  CloudCommand  = CloudActor.Command
-  val  CloudReply    = CloudActor.Reply
 
   object Command {
     case class  Create(node: NewNode)
@@ -232,22 +231,20 @@ object NodeActor {
     case class  Node(node: PersistedNode) extends Data
   }
 
-  object Reply {
-    sealed trait CreateResult
-    case class CreateSuccess(node: PersistedNode) extends CreateResult
-    case class CreateFailure(e: String) extends CreateResult
+  sealed trait CreateReply
+  case class CreateSuccess(node: PersistedNode) extends CreateReply
+  case class CreateFailure(e: String) extends CreateReply
 
-    sealed trait StatusResult
-    case class StatusSuccess(state: State, data: Data) extends StatusResult
+  sealed trait StatusResult
+  case class StatusSuccess(state: State, data: Data) extends StatusResult
 
-    sealed trait RecoveryResult
-    case class RecoverySuccess(state: State) extends RecoveryResult
-    case class RecoveryFailure(e: String, node: PersistedNode) extends RecoveryResult
+  sealed trait RecoveryReply
+  case class RecoverySuccess(state: State) extends RecoveryReply
+  case class RecoveryFailure(e: String, node: PersistedNode) extends RecoveryReply
 
-    sealed trait GetResult
-    case class GetSuccess(node: PersistedNode) extends GetResult
-    case class GetFailure(e: String) extends GetResult
-  }
+  sealed trait GetReply
+  case class GetSuccess(node: PersistedNode) extends GetReply
+  case class GetFailure(e: String) extends GetReply
 
   def props(db: NodesTable, cloud: ActorRef): Props = Props(new NodeActor(db, cloud))
 }

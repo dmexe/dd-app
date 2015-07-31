@@ -1,54 +1,112 @@
 package io.vexor.cloud.actors
 
-import akka.actor.{ActorRef, Props, ActorLogging, Actor}
-import akka.pattern.ask
-import io.vexor.cloud.handlers.NodesHandler
-import io.vexor.cloud.models.{NodesTable, DB}
-import io.vexor.cloud.cloud.AbstractCloud
-import io.vexor.cloud.{ConfigRegistry, Utils}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.io.IO
+import akka.pattern.ask
+import akka.util.Timeout
+import com.typesafe.config.Config
+import io.vexor.cloud.cloud.{AbstractCloud, DigitalOceanCloud}
+import io.vexor.cloud.handlers.HttpHandler
+import io.vexor.cloud.models.ModelRegistry
 import spray.can.Http
 
-object MainActor {
-  case class Init()
-  sealed trait InitResult
-  case class Initialized() extends InitResult
-  case class InitFailed(e: Throwable) extends InitResult
+import scala.concurrent.Await
+import scala.concurrent.duration.DurationInt
+import scala.util.{Failure, Success, Try}
 
-  def props(db: DB.Session, cloud: AbstractCloud) : Props = Props(new MainActor(db, cloud))
+object MainActor {
+  sealed trait Command
+  object Command {
+    case object Start extends Command
+  }
+
+  sealed trait StartReply
+  case object StartSuccess extends StartReply
+  case class  StartFailure(e: String) extends StartReply
+
+  def props(cfg: Config) : Props = Props(new MainActor(cfg))
 }
 
-class MainActor(db: DB.Session, cloud: AbstractCloud) extends Actor with ActorLogging {
+class MainActor(cfg: Config) extends Actor with ActorLogging {
 
   import MainActor._
 
-  implicit val timeout = Utils.timeoutSec(5)
-
-  val nodesTable = NodesTable(db)
+  implicit val timeout = Timeout(5.seconds)
 
   var nodesActor = Option.empty[ActorRef]
   var cloudActor = Option.empty[ActorRef]
   var httpActor  = Option.empty[ActorRef]
 
+  def initDb(url: String): Try[ModelRegistry] = {
+    val db = ModelRegistry(url)
+    db.map { r =>
+      r.up()
+      r
+    }
+  }
+
+  def initCloud(): Try[AbstractCloud] = {
+    val cloud = new DigitalOceanCloud(
+      cfg.getString("cloud.digitalocean.token"),
+      cfg.getString("cloud.digitalocean.region"),
+      cfg.getInt("cloud.digitalocean.imageId"),
+      cfg.getInt("cloud.digitalocean.keyId"),
+      cfg.getString("cloud.digitalocean.size"),
+      ""
+    )
+    Success(cloud)
+  }
+
+  def startCloudActor(cloud: AbstractCloud): Try[ActorRef] = {
+    val cloudActor = context.actorOf(CloudActor.props(cloud), "cloud")
+    val fu = cloudActor ? CloudActor.Command.Start
+    Try {
+      Await.result(fu, timeout.duration).asInstanceOf[CloudActor.StartReply] match {
+        case CloudActor.StartSuccess    => cloudActor
+        case CloudActor.StartFailure(e) => throw new RuntimeException(e)
+      }
+    }
+  }
+
+  def startHttpActor(): Try[ActorRef] = {
+    val httpActor = context.actorOf(HttpHandler.props, "http")
+    val fu = IO(Http)(context.system) ? Http.Bind(httpActor, interface = "localhost", port = 3000)
+    Try {
+      Await.result(fu, timeout.duration) match {
+        case e =>
+          println(e.getClass)
+          println(e.toString)
+          httpActor
+      }
+    }
+  }
+
+  def startNodesActor(db: ModelRegistry, cloudActor: ActorRef): Try[ActorRef] = {
+    val nodesActor = context.actorOf(NodesActor.props(db.nodes, cloudActor))
+    val fu = nodesActor ? NodesActor.Command.Start
+    Try {
+      Await.result(fu, timeout.duration).asInstanceOf[NodesActor.StartReply] match {
+        case NodesActor.StartSuccess    => nodesActor
+        case NodesActor.StartFailure(e) => throw new RuntimeException(e)
+      }
+    }
+  }
+
   def receive = {
-    case Init =>
-      nodesTable.up()
+    case Command.Start =>
+      val re =
+        for {
+          db         <- initDb(cfg.getString("db.url"))
+          cloud      <- initCloud()
+          cloudActor <- startCloudActor(cloud)
+          httpActor  <- startHttpActor()
+          nodesActor <- startNodesActor(db, cloudActor)
+        } yield true
 
-      cloudActor = Option(context.actorOf(CloudActor.props(cloud),         "cloud"))
-      httpActor  = Option(context.actorOf(NodesHandler.props,              "http"))
-      cloudActor foreach {actor =>
-        actor ? CloudActor.Command.Start
-        nodesActor = Option(context.actorOf(NodesActor.props(nodesTable, actor), "nodes")) map { a =>
-          a ? NodesActor.Command.Start
-          a
-        }
-      }
-
-      httpActor map { actor =>
-        IO(Http)(context.system) ? Http.Bind(actor, interface = "localhost", port = 3000)
-      }
-
-      sender() ! Initialized()
+    re match {
+      case Success(_) => sender() ! StartSuccess
+      case Failure(e) => sender() ! StartFailure(e.toString)
+    }
   }
 }
 

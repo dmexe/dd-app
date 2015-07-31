@@ -2,52 +2,28 @@ package io.vexor.cloud
 
 import akka.pattern.ask
 import io.vexor.cloud.actors.MainActor
-import io.vexor.cloud.models.{NodesTable, DB}
-import io.vexor.cloud.cloud.{DigitalOceanCloud, AbstractCloud}
-
-import scala.util.Failure
+import scala.concurrent.Await
 
 
 object Main extends App with AppEnv {
   implicit val timeout = Utils.timeoutSec(5)
 
-  def initDb(): DB.Session = {
-    val db = new DB(dbUrl).open()
-
-    db match {
-      case Failure(e) =>
-        println(e.toString)
-        System.exit(1)
-      case default =>
-    }
-    db.get
+  def shutdown(code: Int): Unit = {
+    system.awaitTermination()
+    System.exit(code)
   }
 
-  def initCloud(reg: ConfigRegistry) : AbstractCloud = {
-    new DigitalOceanCloud(
-      appConfig.getString("cloud.digitalocean.token"),
-      appConfig.getString("cloud.digitalocean.region"),
-      appConfig.getInt("cloud.digitalocean.imageId"),
-      appConfig.getInt("cloud.digitalocean.keyId"),
-      appConfig.getString("cloud.digitalocean.size"),
-      reg.cloudInitDocker
-    )
+  val mainActor = system.actorOf(MainActor.props(appConfig), "main")
+  val fu = mainActor ? MainActor.Command.Start
+
+  Await.result(fu, timeout.duration).asInstanceOf[MainActor.StartReply] match {
+    case MainActor.StartSuccess =>
+      system.log.info("Successfuly started")
+    case MainActor.StartFailure(e) =>
+      system.log.error(s"Fail to boot app: $e")
+      system.shutdown()
+      shutdown(1)
   }
 
-  def initConfigRegistry() = {
-    ConfigRegistry.load(caDir, cloudInitDir)
-  }
-
-  def initMainActor() = {
-    val reg   = initConfigRegistry()
-    val db    = initDb()
-    val cloud = initCloud(reg.get)
-    system.actorOf(MainActor.props(db, cloud), "main")
-  }
-
-  val mainActor = initMainActor()
-
-  mainActor ? MainActor.Init
-
-  system.awaitTermination()
+  shutdown(0)
 }

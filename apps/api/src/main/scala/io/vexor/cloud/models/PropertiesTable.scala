@@ -3,10 +3,12 @@ package io.vexor.cloud.models
 import com.datastax.driver.core.{Row, Session}
 import io.vexor.cloud.Utils.StringSquish
 
+import scala.util.Try
+
 class PropertiesTable(db: Session, tableName: String) extends  {
   import PropertiesTable._
 
-  def up() {
+  def up(): Try[Boolean] = {
     val sql = Seq(
       s"""
         CREATE TABLE IF NOT EXISTS $tableName (
@@ -16,7 +18,10 @@ class PropertiesTable(db: Session, tableName: String) extends  {
         )
       """.squish
     )
-    sql.map(db.execute)
+    Try {
+      sql.map(db.execute)
+      true
+    }
   }
 
   def down() {
@@ -53,8 +58,4 @@ object PropertiesTable extends {
   val TABLE_NAME = "properties"
 
   case class Record(name: String, value: String)
-
-  def apply(session: Session): PropertiesTable = {
-    new PropertiesTable(session, tableName = TABLE_NAME)
-  }
 }

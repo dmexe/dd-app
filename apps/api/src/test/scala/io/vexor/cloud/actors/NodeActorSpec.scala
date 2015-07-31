@@ -9,7 +9,7 @@ import io.vexor.cloud.cloud.{TestCloud, AbstractCloud}
 import io.vexor.cloud.models.{NodesTable, DB}
 import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecLike}
 import scala.concurrent.duration.DurationInt
-import io.vexor.cloud.actors.NodeActor.{Command,Reply,State,Data}
+import io.vexor.cloud.actors.NodeActor.{Command,State,Data}
 
 class NodeActorSpec extends TestKitBase with ImplicitSender
 with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with TestAppEnv {
@@ -46,12 +46,12 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
   def passIdleState(nodeActor: ActorRef): Unit = {
     // Idle: state must be Idle
     nodeActor ! Command.Status
-    expectMsg(Reply.StatusSuccess(State.Idle, Data.Empty))
+    expectMsg(NodeActor.StatusSuccess(State.Idle, Data.Empty))
 
     // Idle: send create
     nodeActor ! Command.Create(newNode)
     expectMsgPF(5.seconds) {
-      case Reply.CreateSuccess(node) =>
+      case NodeActor.CreateSuccess(node) =>
         assert(node.status == NodesTable.Status.New)
     }
   }
@@ -65,14 +65,14 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     // New: reply instance if pending
-    cloudActor.reply(CloudActor.Reply.CreateSuccess(pendingInstance))
+    cloudActor.reply(CloudActor.CreateSuccess(pendingInstance))
   }
 
   def passPendingState(nodeActor: ActorRef, cloudActor: TestProbe): Unit = {
     // Pending: state must be Pending
     nodeActor ! Command.Status
     expectMsgPF(5.seconds) {
-      case Reply.StatusSuccess(State.Pending, Data.Node(node)) =>
+      case NodeActor.StatusSuccess(State.Pending, Data.Node(node)) =>
         assert(node.status == NodesTable.Status.Pending)
     }
 
@@ -83,9 +83,9 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
           assert(id == instanceId)
       }
       if (i == 2) {
-        cloudActor.reply(CloudActor.Reply.GetSuccess(activeInstance))
+        cloudActor.reply(CloudActor.GetSuccess(activeInstance))
       } else {
-        cloudActor.reply(CloudActor.Reply.GetSuccess(pendingInstance))
+        cloudActor.reply(CloudActor.GetSuccess(pendingInstance))
       }
     }
   }
@@ -94,7 +94,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     // Active: state must be Active
     nodeActor ! Command.Status
     expectMsgPF(5.seconds) {
-      case Reply.StatusSuccess(State.Active, Data.Node(node)) =>
+      case NodeActor.StatusSuccess(State.Active, Data.Node(node)) =>
         assert(node.status == NodesTable.Status.Active)
     }
 
@@ -105,9 +105,9 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
           assert(id == instanceId)
       }
       if (i == 2) {
-        cloudActor.reply(CloudActor.Reply.GetSuccess(inactiveInstance))
+        cloudActor.reply(CloudActor.GetSuccess(inactiveInstance))
       } else {
-        cloudActor.reply(CloudActor.Reply.GetSuccess(activeInstance))
+        cloudActor.reply(CloudActor.GetSuccess(activeInstance))
       }
     }
   }
@@ -136,7 +136,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     // Active: state must be Active
     nodeActor ! Command.Status
     expectMsgPF(5.seconds) {
-      case Reply.StatusSuccess(State.Active, Data.Node(node)) =>
+      case NodeActor.StatusSuccess(State.Active, Data.Node(node)) =>
         assert(node.status == NodesTable.Status.Active)
     }
 
@@ -163,7 +163,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
   def expectIdleState(nodeActor: ActorRef) = {
     nodeActor ! Command.Status
-    expectMsg(Reply.StatusSuccess(State.Idle, Data.Empty))
+    expectMsg(NodeActor.StatusSuccess(State.Idle, Data.Empty))
   }
 
   "A NodeActor actor" must {
@@ -193,7 +193,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       // Idle: send create and get fail
       nodeActor ! Command.Create(newNode)
       expectMsgPF(5.seconds) {
-        case Reply.CreateFailure(error) =>
+        case NodeActor.CreateFailure(error) =>
       }
 
       expectIdleState(nodeActor)
@@ -206,7 +206,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
 
       passIdleState(nodeActor)
-      failNewStateWith(cloudActor, CloudActor.Reply.CreateFailure("noop"))
+      failNewStateWith(cloudActor, CloudActor.CreateFailure("noop"))
       expectIdleState(nodeActor)
 
       val expected = List((2, "Broken"),(1, "New"))
@@ -231,7 +231,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
-      failPendingWith(cloudActor, CloudActor.Reply.CreateSuccess(brokenInstance))
+      failPendingWith(cloudActor, CloudActor.CreateSuccess(brokenInstance))
       expectIdleState(nodeActor)
 
       val expected = List((3, "Broken"),(2,"Pending"),(1, "New"))
@@ -258,7 +258,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passIdleState(nodeActor)
       passNewState(cloudActor)
       passPendingState(nodeActor, cloudActor)
-      failActiveWith(nodeActor, cloudActor, CloudActor.Reply.GetSuccess(brokenInstance))
+      failActiveWith(nodeActor, cloudActor, CloudActor.GetSuccess(brokenInstance))
       expectIdleState(nodeActor)
 
       val expected = List((4, "Broken"),(3, "Active"),(2,"Pending"),(1, "New"))
@@ -285,7 +285,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val node       = nodesTable.save(newNode).get
 
       nodeActor ! NodeActor.Command.Recovery(node)
-      expectMsg(NodeActor.Reply.RecoverySuccess(NodeActor.State.New))
+      expectMsg(NodeActor.RecoverySuccess(NodeActor.State.New))
     }
 
     "successfuly recovery actor state from Pending" in {
@@ -295,7 +295,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       node = node.copy(status = NodesTable.Status.Pending)
 
       nodeActor ! NodeActor.Command.Recovery(node)
-      expectMsg(NodeActor.Reply.RecoverySuccess(NodeActor.State.Pending))
+      expectMsg(NodeActor.RecoverySuccess(NodeActor.State.Pending))
     }
 
     "successfuly recovery actor state from Active" in {
@@ -305,7 +305,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       node = node.copy(status = NodesTable.Status.Active)
 
       nodeActor ! NodeActor.Command.Recovery(node)
-      expectMsg(NodeActor.Reply.RecoverySuccess(NodeActor.State.Active))
+      expectMsg(NodeActor.RecoverySuccess(NodeActor.State.Active))
     }
 
     "fail to recovery actor state from Finished" in {
@@ -316,7 +316,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       nodeActor ! NodeActor.Command.Recovery(node)
       expectMsgPF(5.seconds) {
-        case NodeActor.Reply.RecoveryFailure(_, _) =>
+        case NodeActor.RecoveryFailure(_, _) =>
       }
 
       expectIdleState(nodeActor)
@@ -330,7 +330,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       nodeActor ! NodeActor.Command.Recovery(node)
       expectMsgPF(5.seconds) {
-        case NodeActor.Reply.RecoveryFailure(_, _) =>
+        case NodeActor.RecoveryFailure(_, _) =>
       }
 
       expectIdleState(nodeActor)

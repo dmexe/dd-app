@@ -2,10 +2,13 @@ package io.vexor.cloud.models
 
 import io.vexor.cloud.KeyGen
 
-class CA(id: String, subject: String, re: KeyGen.Result) {
+class CA(id: String, subject: String, re: KeyGen.Result, pem: KeyGen.Pem) {
   val cert       = re.cert
   val privateKey = re.privateKey
   val publicKey  = re.publicKey
+
+  val certPem    = pem.cert
+  val keyPem     = pem.privateKey
 }
 
 object CA {
@@ -15,8 +18,9 @@ object CA {
     val certName = s"$id-cert.pem"
     val keyName  = s"$id-key.pem"
 
-    val re = loadFromDb(prop, certName, keyName) getOrElse genAndSaveToDb(prop, subject, certName, keyName)
-    new CA(id, subject, re)
+    val ca  = loadFromDb(prop, certName, keyName) getOrElse genAndSaveToDb(prop, subject, certName, keyName)
+    val pem = KeyGen.toPEM(ca)
+    new CA(id, subject, ca, pem)
   }
 
   private def loadFromDb(prop: PropertiesTable, certName: String, keyName: String) : Option[KeyGen.Result] = {
