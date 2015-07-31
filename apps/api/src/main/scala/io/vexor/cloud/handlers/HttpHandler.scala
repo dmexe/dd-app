@@ -4,18 +4,15 @@ import java.util.UUID
 
 import akka.actor.{Props, Actor, ActorLogging}
 import akka.pattern.ask
-import akka.util.Timeout
+import io.vexor.cloud.DefaultTimeout
 import io.vexor.cloud.actors.{NodeActor, NodesActor}
 import spray.http.StatusCodes.{UnprocessableEntity, NotFound}
 import spray.routing.HttpService
-import scala.concurrent.duration.DurationInt
 
-class HttpHandler extends Actor with ActorLogging with HttpService with JsonProtocol {
+class HttpHandler extends Actor with ActorLogging with HttpService with JsonProtocol with DefaultTimeout {
 
   import spray.httpx.SprayJsonSupport.sprayJsonMarshaller
   import context.dispatcher
-
-  implicit val timeout = Timeout(5.second)
 
   val actorRefFactory = context
   val userId          = new UUID(0,0)

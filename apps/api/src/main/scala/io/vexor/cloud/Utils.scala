@@ -1,9 +1,5 @@
 package io.vexor.cloud
 
-import java.util.concurrent.TimeUnit
-
-import akka.util.Timeout
-
 import scala.util.{Failure, Success, Try}
 
 object Utils {
@@ -27,10 +23,6 @@ object Utils {
         case None    => Failure(e)
       }
     }
-  }
-
-  def timeoutSec(n: Int) = {
-    Timeout(n, TimeUnit.SECONDS)
   }
 }
 

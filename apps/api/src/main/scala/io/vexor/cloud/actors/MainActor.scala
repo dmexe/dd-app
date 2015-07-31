@@ -3,15 +3,14 @@ package io.vexor.cloud.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.io.IO
 import akka.pattern.ask
-import akka.util.Timeout
 import com.typesafe.config.Config
+import io.vexor.cloud.DefaultTimeout
 import io.vexor.cloud.cloud.{AbstractCloud, DigitalOceanCloud}
 import io.vexor.cloud.handlers.HttpHandler
 import io.vexor.cloud.models.ModelRegistry
 import spray.can.Http
 
 import scala.concurrent.Await
-import scala.concurrent.duration.DurationInt
 import scala.util.{Failure, Success, Try}
 
 object MainActor {
@@ -27,15 +26,9 @@ object MainActor {
   def props(cfg: Config) : Props = Props(new MainActor(cfg))
 }
 
-class MainActor(cfg: Config) extends Actor with ActorLogging {
+class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout {
 
   import MainActor._
-
-  implicit val timeout = Timeout(5.seconds)
-
-  var nodesActor = Option.empty[ActorRef]
-  var cloudActor = Option.empty[ActorRef]
-  var httpActor  = Option.empty[ActorRef]
 
   def initDb(url: String): Try[ModelRegistry] = {
     val db = ModelRegistry(url)

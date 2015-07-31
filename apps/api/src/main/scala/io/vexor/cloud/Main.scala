@@ -4,9 +4,7 @@ import akka.pattern.ask
 import io.vexor.cloud.actors.MainActor
 import scala.concurrent.Await
 
-
-object Main extends App with AppEnv {
-  implicit val timeout = Utils.timeoutSec(5)
+object Main extends App with AppEnv with DefaultTimeout {
 
   def shutdown(code: Int): Unit = {
     system.awaitTermination()

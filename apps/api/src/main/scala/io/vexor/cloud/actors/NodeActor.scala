@@ -3,18 +3,17 @@ package io.vexor.cloud.actors
 import akka.actor.FSM
 import akka.actor._
 import akka.pattern.ask
-import akka.util.Timeout
+import io.vexor.cloud.DefaultTimeout
 import io.vexor.cloud.cloud.AbstractCloud
 import io.vexor.cloud.models.NodesTable
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import scala.util.{Try, Success}
 
-class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.State, NodeActor.Data] with ActorLogging {
+class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.State, NodeActor.Data] with ActorLogging
+with DefaultTimeout {
 
   import NodeActor._
-
-  implicit val timeout = Timeout(5.seconds)
 
   val tickInterval = 5.seconds
 

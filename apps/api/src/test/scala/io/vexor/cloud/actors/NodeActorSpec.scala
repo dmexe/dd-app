@@ -2,11 +2,11 @@ package io.vexor.cloud.actors
 
 import java.util.UUID
 
-import akka.actor.{Props, ActorRef, ActorSystem}
+import akka.actor.{Props, ActorRef}
 import akka.testkit._
 import io.vexor.cloud.TestAppEnv
 import io.vexor.cloud.cloud.{TestCloud, AbstractCloud}
-import io.vexor.cloud.models.{NodesTable, DB}
+import io.vexor.cloud.models.{ModelRegistry, NodesTable}
 import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecLike}
 import scala.concurrent.duration.DurationInt
 import io.vexor.cloud.actors.NodeActor.{Command,State,Data}
@@ -14,12 +14,9 @@ import io.vexor.cloud.actors.NodeActor.{Command,State,Data}
 class NodeActorSpec extends TestKitBase with ImplicitSender
 with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with TestAppEnv {
 
-  override implicit lazy val system = ActorSystem("NodeActorSpec", appConfig)
-
   val userId     = new UUID(0,0)
-  val tableName  = "nodes_node_actor"
-  val db         = new DB(dbUrl).open().get
-  val nodesTable = new NodesTable(db, tableName)
+  val reg        = ModelRegistry(dbUrl, "NodeActorSpec").get
+  val db         = reg.nodes
   val instanceId = "0"
   val role       = "node-actor-spec"
   val newNode    = NodesTable.New(userId, role)
@@ -30,17 +27,18 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
   val brokenInstance   = pendingInstance.copy(status = AbstractCloud.Status.Broken)
 
   override def beforeAll() = {
-    nodesTable.down()
-    nodesTable.up()
+    db.down()
+    db.up()
   }
 
   override def afterAll() = {
     TestKit.shutdownActorSystem(system)
-    nodesTable.down()
+    db.down()
+    reg.db.close()
   }
 
   override def beforeEach() = {
-    nodesTable.truncate()
+    db.truncate()
   }
 
   def passIdleState(nodeActor: ActorRef): Unit = {
@@ -148,8 +146,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     cloudActor.reply(m)
   }
 
-  def assertPersistentVersions(expected: List[Tuple2[Int, String]]): Unit = {
-    val versions = nodesTable.allVersionsFor(userId, role) map(v => (v.version, v.status.toString))
+  def assertPersistentVersions(expected: List[(Int, String)]): Unit = {
+    val versions = db.allVersionsFor(userId, role) map(v => (v.version, v.status.toString))
     assert(versions == expected)
   }
 
@@ -169,7 +167,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
   "A NodeActor actor" must {
     "successfuly create and processing node" in {
       val cloudActor = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       expectIdleState(nodeActor)
       passIdleState(nodeActor)
@@ -185,7 +183,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when node wasn't created (State.Idle)" in {
       val cloudActor  = TestProbe()
-      val fNodesTable = new NodesTable(db, tableName) {
+      val fNodesTable = new NodesTable(reg.session, "nodes") {
         override def save(node: NodesTable.New): Option[NodesTable.Persisted] = None
       }
       val nodeActor  = getNodeActor(fNodesTable, cloudActor.ref)
@@ -203,7 +201,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when instance wasn't created: error in cloud provider (State.New)" in {
       val cloudActor  = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       passIdleState(nodeActor)
       failNewStateWith(cloudActor, CloudActor.CreateFailure("noop"))
@@ -215,7 +213,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when instance wasn't created: unhandled error (State.New)" in {
       val cloudActor  = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       passIdleState(nodeActor)
       failNewStateWith(cloudActor, "noop")
@@ -227,7 +225,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when await instance is running: instance down (State.Pending)" in {
       val cloudActor  = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
@@ -240,7 +238,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when await instance is running: unhandled error (State.Pending)" in {
       val cloudActor  = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
@@ -253,7 +251,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when await instance termination: instance down (State.Active)" in {
       val cloudActor  = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
@@ -267,7 +265,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when await instance termination: unhandled error (State.Active)" in {
       val cloudActor  = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
@@ -281,8 +279,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "successfuly recovery actor state from New" in {
       val cloudActor = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
-      val node       = nodesTable.save(newNode).get
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
+      val node       = db.save(newNode).get
 
       nodeActor ! NodeActor.Command.Recovery(node)
       expectMsg(NodeActor.RecoverySuccess(NodeActor.State.New))
@@ -290,8 +288,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "successfuly recovery actor state from Pending" in {
       val cloudActor = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
-      var node       = nodesTable.save(newNode).get
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
+      var node       = db.save(newNode).get
       node = node.copy(status = NodesTable.Status.Pending)
 
       nodeActor ! NodeActor.Command.Recovery(node)
@@ -300,8 +298,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "successfuly recovery actor state from Active" in {
       val cloudActor = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
-      var node       = nodesTable.save(newNode).get
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
+      var node       = db.save(newNode).get
       node = node.copy(status = NodesTable.Status.Active)
 
       nodeActor ! NodeActor.Command.Recovery(node)
@@ -310,8 +308,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail to recovery actor state from Finished" in {
       val cloudActor = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
-      var node       = nodesTable.save(newNode).get
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
+      var node       = db.save(newNode).get
       node = node.copy(status = NodesTable.Status.Finished)
 
       nodeActor ! NodeActor.Command.Recovery(node)
@@ -324,8 +322,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail to recovery actor state from Broken" in {
       val cloudActor = TestProbe()
-      val nodeActor  = getNodeActor(nodesTable, cloudActor.ref)
-      var node       = nodesTable.save(newNode).get
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
+      var node       = db.save(newNode).get
       node = node.copy(status = NodesTable.Status.Broken)
 
       nodeActor ! NodeActor.Command.Recovery(node)
