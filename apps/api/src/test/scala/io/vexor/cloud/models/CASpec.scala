@@ -4,8 +4,8 @@ import io.vexor.cloud.TestAppEnv
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class CASpec extends WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
-  val reg     = ModelRegistry(dbUrl, "CASpec").get
-  val db      = reg.properties
+  val reg = ModelRegistry(dbUrl, "CASpec").get
+  val db  = reg.properties
 
   override def beforeAll() : Unit = {
     db.down()
