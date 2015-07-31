@@ -47,7 +47,6 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     val cloud = new DigitalOceanCloud(
       cfg.getString("cloud.digitalocean.token"),
       cfg.getString("cloud.digitalocean.region"),
-      cfg.getInt("cloud.digitalocean.imageId"),
       cfg.getInt("cloud.digitalocean.keyId"),
       cfg.getString("cloud.digitalocean.size"),
       cloudInit

@@ -5,6 +5,7 @@ import java.util.UUID
 import com.myjeeva.digitalocean.impl.DigitalOceanClient
 import com.myjeeva.digitalocean.pojo.{Droplet, Image, Key, Region}
 import io.vexor.cloud.cloud.AbstractCloud.Status
+import io.vexor.cloud.Utils.OptionToTry
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClientBuilder}
 
@@ -15,7 +16,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
 import scala.util.Try
 
-class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int, size: String, cloudInit: CloudInit) extends AbstractCloud {
+class DigitalOceanCloud(token: String, region: String, keyId: Int, size: String, cloudInit: CloudInit) extends AbstractCloud {
   import DigitalOceanCloud._
 
   lazy val api  = new DigitalOceanClient("v2", token, buildHttpClient())
@@ -25,8 +26,9 @@ class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int,
     val userData   = cloudInit.getContent(fqdn)
 
     for {
+      image    <- getDockerImage
       userData <- cloudInit.getContent(fqdn)
-      instance <- createDroplet(userId, role, version, fqdn, userData)
+      instance <- createDroplet(userId, role, version, fqdn, userData, image)
     } yield instance
   }
 
@@ -41,12 +43,12 @@ class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int,
     re map (_.getIsRequestSuccess)
   }
 
-  private def createDroplet(userId: UUID, role: String, version: Int, fqdn: String, userData: String): Try[Instance] = {
+  private def createDroplet(userId: UUID, role: String, version: Int, fqdn: String, userData: String, image: Image): Try[Instance] = {
     val newDroplet = new Droplet()
     newDroplet.setName(fqdn)
     newDroplet.setSize(size)
     newDroplet.setRegion(new Region(region))
-    newDroplet.setImage(new Image(imageId))
+    newDroplet.setImage(image)
     newDroplet.setUserData(userData)
 
     val keys = List[Key](new Key(keyId))
@@ -74,6 +76,24 @@ class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int,
         case _         => Status.Broken
       }
       Instance(id, name, UUID.fromString(userId), role, version.toInt, status)
+    }
+  }
+
+  private def getDockerImage: Try[Image] = {
+    val images = getAvailableImages()
+    images
+      .filter(_.getRegions.toList.contains(region))
+      .find(_.getSlug == "coreos-stable")
+      .toTry(new RuntimeException(s"Cannot found image with slug=coreos-stable and region=$region"))
+  }
+
+  @tailrec
+  private def getAvailableImages(collected: List[Image] = List.empty[Image], pageNo: Int = 1): List[Image] = {
+    val newImages = api.getAvailableImages(pageNo).getImages.toList
+    if (newImages.isEmpty) {
+      collected
+    } else {
+      getAvailableImages(newImages ++ collected, pageNo + 1)
     }
   }
 
