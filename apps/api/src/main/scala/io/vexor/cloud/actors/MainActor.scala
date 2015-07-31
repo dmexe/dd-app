@@ -5,9 +5,9 @@ import akka.io.IO
 import akka.pattern.ask
 import com.typesafe.config.Config
 import io.vexor.cloud.DefaultTimeout
-import io.vexor.cloud.cloud.{AbstractCloud, DigitalOceanCloud}
+import io.vexor.cloud.cloud.{CloudInit, AbstractCloud, DigitalOceanCloud}
 import io.vexor.cloud.handlers.HttpHandler
-import io.vexor.cloud.models.ModelRegistry
+import io.vexor.cloud.models.{CA, ModelRegistry}
 import spray.can.Http
 
 import scala.concurrent.Await
@@ -38,14 +38,19 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     }
   }
 
-  def initCloud(): Try[AbstractCloud] = {
+  def initCloudInit(reg: ModelRegistry): Try[CloudInit] = {
+    val ca = CA("docker", "Docker CA Authority", reg.properties)
+    CloudInit.docker(ca)
+  }
+
+  def initCloud(cloudInit: CloudInit): Try[AbstractCloud] = {
     val cloud = new DigitalOceanCloud(
       cfg.getString("cloud.digitalocean.token"),
       cfg.getString("cloud.digitalocean.region"),
       cfg.getInt("cloud.digitalocean.imageId"),
       cfg.getInt("cloud.digitalocean.keyId"),
       cfg.getString("cloud.digitalocean.size"),
-      ""
+      cloudInit
     )
     Success(cloud)
   }
@@ -87,10 +92,11 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
 
   def receive = {
     case Command.Start =>
-      val re =
+      val re: Try[Boolean] =
         for {
           db         <- initDb(cfg.getString("db.url"))
-          cloud      <- initCloud()
+          cloudInit  <- initCloudInit(db)
+          cloud      <- initCloud(cloudInit)
           cloudActor <- startCloudActor(cloud)
           httpActor  <- startHttpActor()
           nodesActor <- startNodesActor(db, cloudActor)

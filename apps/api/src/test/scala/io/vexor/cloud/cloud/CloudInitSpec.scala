@@ -26,7 +26,7 @@ with TestAppEnv {
   "A CloudInit" must {
     "successfuly return content for instance" in {
       val ca = CA("id", "subject", db)
-      val ci = CloudInit("docker", ca).get
+      val ci = CloudInit.docker(ca).get
       val content = ci.getContent("example.com").get
       println(content)
     }

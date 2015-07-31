@@ -15,27 +15,19 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
 import scala.util.Try
 
-class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int, size: String, cloudInit: String) extends AbstractCloud {
+class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int, size: String, cloudInit: CloudInit) extends AbstractCloud {
   import DigitalOceanCloud._
 
   lazy val api  = new DigitalOceanClient("v2", token, buildHttpClient())
 
   def create(userId: UUID, role: String, version: Int) : Try[Instance] = {
-    val newDroplet = new Droplet()
-    newDroplet.setName(s"$userId.$role.v$version.$region.docker")
-    newDroplet.setSize(size)
-    newDroplet.setRegion(new Region(region))
-    newDroplet.setImage(new Image(imageId))
-    newDroplet.setUserData(cloudInit)
+    val fqdn       = s"$userId.$role.v$version.$region.docker"
+    val userData   = cloudInit.getContent(fqdn)
 
-    val keys = List[Key](new Key(keyId))
-    newDroplet.setKeys(keys)
-
-    val fu = Future { api.createDroplet(newDroplet) }
-    val re = Try { Await.result(fu, opTimeout) }
-    re map { d =>
-      Instance(d.getId.toString, d.getName, userId, role, version, Status.Pending)
-    }
+    for {
+      userData <- cloudInit.getContent(fqdn)
+      instance <- createDroplet(userId, role, version, fqdn, userData)
+    } yield instance
   }
 
   def all(): Try[List[Instance]] = {
@@ -47,6 +39,24 @@ class DigitalOceanCloud(token: String, region: String, imageId: Int, keyId: Int,
     val fu = Future { api.deleteDroplet(id.toInt) }
     val re = Try { Await.result(fu, opTimeout) }
     re map (_.getIsRequestSuccess)
+  }
+
+  private def createDroplet(userId: UUID, role: String, version: Int, fqdn: String, userData: String): Try[Instance] = {
+    val newDroplet = new Droplet()
+    newDroplet.setName(fqdn)
+    newDroplet.setSize(size)
+    newDroplet.setRegion(new Region(region))
+    newDroplet.setImage(new Image(imageId))
+    newDroplet.setUserData(userData)
+
+    val keys = List[Key](new Key(keyId))
+    newDroplet.setKeys(keys)
+
+    val fu = Future { api.createDroplet(newDroplet) }
+    val re = Try { Await.result(fu, opTimeout) }
+    re map { d =>
+      Instance(d.getId.toString, d.getName, userId, role, version, Status.Pending)
+    }
   }
 
   private def dropletToInstance(droplet: Droplet): Option[Instance] = {

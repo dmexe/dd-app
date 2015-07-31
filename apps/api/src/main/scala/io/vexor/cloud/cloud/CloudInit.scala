@@ -47,4 +47,6 @@ object CloudInit {
       cloudInit <- new CloudInit(fileName.toString, content, ca).validate()
     } yield cloudInit
   }
+
+  def docker(ca: CA) = apply("docker", ca)
 }
