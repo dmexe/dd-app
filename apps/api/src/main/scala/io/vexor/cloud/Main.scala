@@ -3,25 +3,36 @@ package io.vexor.cloud
 import akka.pattern.ask
 import io.vexor.cloud.actors.MainActor
 import scala.concurrent.Await
+import akka.util.Timeout
+import scala.concurrent.duration.DurationInt
+import scala.util.{Try,Success,Failure}
 
-object Main extends App with AppEnv with DefaultTimeout {
+object Main extends App with AppEnv {
 
-  def shutdown(code: Int): Unit = {
-    system.awaitTermination()
-    System.exit(code)
+  implicit val timeout = Timeout(1.minute)
+
+  def boot(): Try[Boolean] = {
+    val mainActor = system.actorOf(MainActor.props(appConfig), "main")
+    val fu = mainActor ? MainActor.Command.Start
+
+    Try {
+      Await.result(fu, timeout.duration).asInstanceOf[MainActor.StartReply] match {
+        case MainActor.StartSuccess =>
+          true
+        case MainActor.StartFailure(e) =>
+          throw new RuntimeException(s"Boot failed: $e")
+      }
+    }
   }
 
-  val mainActor = system.actorOf(MainActor.props(appConfig), "main")
-  val fu = mainActor ? MainActor.Command.Start
-
-  Await.result(fu, timeout.duration).asInstanceOf[MainActor.StartReply] match {
-    case MainActor.StartSuccess =>
+  boot() match {
+    case Success(_) =>
       system.log.info("Successfuly started")
-    case MainActor.StartFailure(e) =>
+      system.awaitTermination()
+    case Failure(e) =>
       system.log.error(s"Fail to boot app: $e")
       system.shutdown()
-      shutdown(1)
+      system.awaitTermination()
+      System.exit(1)
   }
-
-  shutdown(0)
 }

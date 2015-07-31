@@ -79,7 +79,7 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
   }
 
   def startNodesActor(db: ModelRegistry, cloudActor: ActorRef): Try[ActorRef] = {
-    val nodesActor = context.actorOf(NodesActor.props(db.nodes, cloudActor))
+    val nodesActor = context.actorOf(NodesActor.props(db.nodes, cloudActor), "nodes")
     val fu = nodesActor ? NodesActor.Command.Start
     Try {
       Await.result(fu, timeout.duration).asInstanceOf[NodesActor.StartReply] match {
