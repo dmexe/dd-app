@@ -1,5 +1,6 @@
-package io.vexor.cloud
+package io.vexor.cloud.models
 
+import io.vexor.cloud.TestAppEnv
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class KeyGenSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {

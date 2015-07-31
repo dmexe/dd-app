@@ -1,8 +1,6 @@
 package io.vexor.cloud.models
 
-import io.vexor.cloud.KeyGen
-
-class CA(id: String, subject: String, re: KeyGen.Result, pem: KeyGen.Pem) {
+class CA(val id: String, val subject: String, val re: KeyGen.Result, pem: KeyGen.Pem) {
   val cert       = re.cert
   val privateKey = re.privateKey
   val publicKey  = re.publicKey

@@ -6,17 +6,17 @@ write_files:
     owner: root:docker
     permissions: "0750"
     content: |
-      %DOCKER_CA_PEM%
+      %CA_PEM%
   - path: /etc/ssl/docker/server-cert.pem
     owner: root:docker
     permissions: "0750"
     content: |
-      %DOCKER_SERVER_CERT_PEM%
+      %CERT_PEM%
   - path: /etc/ssl/docker/server-key.pem
     owner: root:docker
     permissions: "0750"
     content: |
-      %DOCKER_SERVER_KEY_PEM%
+      %KEY_PEM%
 
 coreos:
   units:

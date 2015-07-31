@@ -1,4 +1,4 @@
-package io.vexor.cloud
+package io.vexor.cloud.models
 
 import java.io.{StringReader, StringWriter}
 import java.math.BigInteger
