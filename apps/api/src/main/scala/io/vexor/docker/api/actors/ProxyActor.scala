@@ -1,14 +1,8 @@
 package io.vexor.docker.api.actors
 
-import java.util.UUID
-
 import akka.actor.{ActorRef, Actor, ActorLogging, Props}
-import akka.pattern.ask
 import io.vexor.docker.api.DefaultTimeout
 import io.vexor.docker.api.models.{KeyGen, CA}
-
-import scala.concurrent.Await
-import scala.util.{Try,Success}
 
 class ProxyActor(dockerCa: CA, clientsCa: CA, nodesActor: ActorRef) extends Actor with ActorLogging with DefaultTimeout {
 
@@ -23,20 +17,9 @@ class ProxyActor(dockerCa: CA, clientsCa: CA, nodesActor: ActorRef) extends Acto
     CredentialsSuccess(dockerTls, clientsTls)
   }
 
-  def getInstanceIp(userId: UUID, role: String) = {
-    val fu = nodesActor ? NodesActor.Command.Get(userId, role)
-    val re = Try{ Await.result(fu, timeout.duration).asInstanceOf[NodeActor.GetReply] }
-    re match {
-      case Success(NodeActor.GetSuccess(node)) =>
-      case e =>
-    }
-  }
-
   def receive = {
     case Command.Credentials(subject) =>
       sender() ! getCredentials(subject)
-    case Command.GetInstanceIp(subject) =>
-
   }
 }
 
@@ -44,7 +27,6 @@ object ProxyActor {
 
   object Command {
     case class Credentials(subject: String)
-    case class GetInstanceIp(subject: String)
   }
 
   case class TlsInfo(ca: String, cert: String, key: String)

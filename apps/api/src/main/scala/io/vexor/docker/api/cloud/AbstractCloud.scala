@@ -23,6 +23,7 @@ object AbstractCloud {
   abstract class Instance {
     val id:        String
     val name:      String
+    val addr:      String
     val userId:    UUID
     val role:      String
     val version:   Int

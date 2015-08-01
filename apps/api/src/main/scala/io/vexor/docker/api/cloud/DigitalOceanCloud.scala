@@ -62,8 +62,9 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
     val fu = Future { api.createDroplet(newDroplet) }
     val re = Try { Await.result(fu, opTimeout) }
     re map { d =>
-      val tm = Instant.ofEpochMilli(d.getCreatedDate.getTime)
-      Instance(d.getId.toString, d.getName, userId, role, version, Status.Pending, tm)
+      val tm   = Instant.ofEpochMilli(d.getCreatedDate.getTime)
+      val addr = d.getNetworks.getVersion4Networks.head.getIpAddress
+      Instance(d.getId.toString, d.getName, addr, userId, role, version, Status.Pending, tm)
     }
   }
 
@@ -75,6 +76,7 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
       val version = i.group(3: Int)
       val id      = droplet.getId.toString
       val tm      = Instant.ofEpochMilli(droplet.getCreatedDate.getTime)
+      val addr    = droplet.getNetworks.getVersion4Networks.head.getIpAddress
       val status  = droplet.getStatus.toString match {
         case "new"     => Status.Pending
         case "active"  => Status.On
@@ -82,7 +84,7 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
         case "archive" => Status.Off
         case _         => Status.Broken
       }
-      Instance(id, name, UUID.fromString(userId), role, version.toInt, status, tm)
+      Instance(id, name, addr, UUID.fromString(userId), role, version.toInt, status, tm)
     }
   }
 
@@ -157,7 +159,7 @@ object DigitalOceanCloud {
   val opTimeout = 5.seconds
   val nameRe    = """^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(\w+)\.v(\d+)""".r
 
-  case class Instance(id: String, name: String, userId: UUID, role:String, version:Int, status: Status.Value, createdAt:Instant) extends AbstractCloud.Instance
+  case class Instance(id: String, name: String, addr: String, userId: UUID, role:String, version:Int, status: Status.Value, createdAt:Instant) extends AbstractCloud.Instance
 
   private def buildHttpClient(): CloseableHttpClient = {
     val httpCfg = RequestConfig.custom()
