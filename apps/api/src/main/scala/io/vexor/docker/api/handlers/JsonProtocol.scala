@@ -1,21 +1,30 @@
 package io.vexor.docker.api.handlers
 
+import java.util.{Date, UUID}
+
 import io.vexor.docker.api.models.NodesTable
 import spray.json._
 
-trait JsonProtocol extends DefaultJsonProtocol {
-
-  implicit object NodeJsonFormat extends RootJsonFormat[NodesTable.Persisted]
-  with WriteOnlyJsonProtocol[NodesTable.Persisted] {
-    def write(re: NodesTable.Persisted): JsValue = {
-      JsObject(
-        ("user_id",    JsString(re.userId.toString)),
-        ("role",       JsString(re.role)),
-        ("version",    JsNumber(re.version)),
-        ("status",     JsString(re.status.toString)),
-        ("created_at", JsString(re.createdAt.toString))
-      )
-    }
+trait WriteOnlyJsonProtocol[T] {
+  def read(json: JsValue): T = {
+    deserializationError("Write only record")
   }
 }
 
+trait WriteToStringJsonProtocol[T] {
+  def write(obj: T) = JsString(obj.toString)
+}
+
+trait JsonProtocol extends DefaultJsonProtocol {
+  implicit object UUIDJsonFormat extends RootJsonFormat[UUID]
+    with WriteOnlyJsonProtocol[UUID]
+    with WriteToStringJsonProtocol[UUID]
+  implicit object NodeStatusJsonFormat extends RootJsonFormat[NodesTable.Status.Value]
+    with WriteOnlyJsonProtocol[NodesTable.Status.Value]
+    with WriteToStringJsonProtocol[NodesTable.Status.Value]
+  implicit object DateJsonFormat extends RootJsonFormat[Date]
+    with WriteOnlyJsonProtocol[Date]
+    with WriteToStringJsonProtocol[Date]
+
+  implicit def persistedNodeFormat = jsonFormat6(NodesTable.Persisted)
+}

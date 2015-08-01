@@ -1,6 +1,7 @@
 package io.vexor.docker.api.cloud
 
-import java.util.UUID
+import java.time.Instant
+import java.util.{Date, UUID}
 
 import com.myjeeva.digitalocean.impl.DigitalOceanClient
 import com.myjeeva.digitalocean.pojo.{Droplet, Image, Key, Region}
@@ -61,7 +62,8 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
     val fu = Future { api.createDroplet(newDroplet) }
     val re = Try { Await.result(fu, opTimeout) }
     re map { d =>
-      Instance(d.getId.toString, d.getName, userId, role, version, Status.Pending)
+      val tm = Instant.ofEpochMilli(d.getCreatedDate.getTime)
+      Instance(d.getId.toString, d.getName, userId, role, version, Status.Pending, tm)
     }
   }
 
@@ -72,6 +74,7 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
       val role    = i.group(2: Int)
       val version = i.group(3: Int)
       val id      = droplet.getId.toString
+      val tm      = Instant.ofEpochMilli(droplet.getCreatedDate.getTime)
       val status  = droplet.getStatus.toString match {
         case "new"     => Status.Pending
         case "active"  => Status.On
@@ -79,7 +82,7 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
         case "archive" => Status.Off
         case _         => Status.Broken
       }
-      Instance(id, name, UUID.fromString(userId), role, version.toInt, status)
+      Instance(id, name, UUID.fromString(userId), role, version.toInt, status, tm)
     }
   }
 
@@ -154,7 +157,7 @@ object DigitalOceanCloud {
   val opTimeout = 5.seconds
   val nameRe    = """^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(\w+)\.v(\d+)""".r
 
-  case class Instance(id: String, name: String, userId: UUID, role:String, version:Int, status: Status.Value) extends AbstractCloud.Instance
+  case class Instance(id: String, name: String, userId: UUID, role:String, version:Int, status: Status.Value, createdAt:Instant) extends AbstractCloud.Instance
 
   private def buildHttpClient(): CloseableHttpClient = {
     val httpCfg = RequestConfig.custom()

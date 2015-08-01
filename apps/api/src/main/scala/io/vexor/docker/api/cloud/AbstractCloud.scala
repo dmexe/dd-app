@@ -1,5 +1,6 @@
 package io.vexor.docker.api.cloud
 
+import java.time.Instant
 import java.util.UUID
 
 import scala.util.Try
@@ -20,12 +21,13 @@ object AbstractCloud {
   }
 
   abstract class Instance {
-    val id:      String
-    val name:    String
-    val userId:  UUID
-    val role:    String
-    val version: Int
-    val status:  Status.Value
+    val id:        String
+    val name:      String
+    val userId:    UUID
+    val role:      String
+    val version:   Int
+    val status:    Status.Value
+    val createdAt: Instant
   }
 }
 

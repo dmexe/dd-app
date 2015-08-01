@@ -1,6 +1,7 @@
 package io.vexor.docker.api.actors
 
-import java.util.UUID
+import java.time.OffsetDateTime
+import java.util.{Date, UUID}
 
 import akka.actor.{FSM, Props, ActorLogging}
 import scala.concurrent.Future
@@ -14,8 +15,8 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
   import context.dispatcher
   import CloudActor._
 
-  val tickInterval   = 30.seconds
-  val cleanupTimeout = 1.minute
+  val tickInterval      = 20.seconds
+  val gapCleanupMinutes = 1
 
   startWith(State.Idle, Data.Empty)
 
@@ -88,7 +89,12 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
 
   def awaitCleanup: StateFunction = {
     case Event(Command.Cleanup(existingIds), Data.Instances(instances)) =>
-      val ids = instances map(_.id) diff existingIds
+      val gap = OffsetDateTime.now().minusMinutes(gapCleanupMinutes).toInstant
+
+      println(instances.toString)
+      println(gap.toString)
+
+      val ids = instances filter(_.createdAt.isBefore(gap)) map(_.id) diff existingIds
       if(ids.nonEmpty) {
         log.info(s"Found ${ids.size} unused instances, cleanup [ids=$ids]")
         Future { ids map destroyInstance }

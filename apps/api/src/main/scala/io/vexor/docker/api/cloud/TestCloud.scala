@@ -1,5 +1,6 @@
 package io.vexor.docker.api.cloud
 
+import java.time.Instant
 import java.util.UUID
 
 import AbstractCloud.Status
@@ -10,7 +11,7 @@ class TestCloud extends AbstractCloud {
   import TestCloud._
 
   def create(userId: UUID, role: String, version: Int): Try[Instance] = {
-    val re = Instance(role, role, new UUID(0,0), role, 1, Status.Pending)
+    val re = Instance(role, role, new UUID(0,0), role, 1, Status.Pending, Instant.now())
     Success(re)
   }
 
@@ -24,7 +25,7 @@ class TestCloud extends AbstractCloud {
 }
 
 object TestCloud {
-  case class Instance(id: String, name: String, userId: UUID, role: String, version: Int, status: Status.Value) extends AbstractCloud.Instance
+  case class Instance(id: String, name: String, userId: UUID, role: String, version: Int, status: Status.Value, createdAt: Instant) extends AbstractCloud.Instance
 
   def apply() = new TestCloud
 }

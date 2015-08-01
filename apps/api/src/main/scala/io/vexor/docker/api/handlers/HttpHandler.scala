@@ -2,26 +2,23 @@ package io.vexor.docker.api.handlers
 
 import java.util.UUID
 
-import akka.actor.{Props, Actor, ActorLogging}
+import akka.actor.{Actor, ActorLogging, Props}
 import akka.pattern.ask
 import io.vexor.docker.api.DefaultTimeout
-import io.vexor.docker.api.actors.{NodeActor, NodesActor}
-import io.vexor.docker.api.DefaultTimeout
-import io.vexor.docker.api.actors.{NodesActor, NodeActor}
 import io.vexor.docker.api.actors.NodesActor.Command
-import spray.http.StatusCodes.{UnprocessableEntity, NotFound}
-import spray.routing.{PathMatcher, HttpService}
+import io.vexor.docker.api.actors.{NodeActor, NodesActor}
+import spray.http.StatusCodes.{NotFound, UnprocessableEntity}
+import spray.routing.{HttpService, PathMatcher}
 
 class HttpHandler extends Actor with ActorLogging with HttpService with JsonProtocol with DefaultTimeout {
 
-  import spray.httpx.SprayJsonSupport.sprayJsonMarshaller
   import context.dispatcher
+  import spray.httpx.SprayJsonSupport.sprayJsonMarshaller
 
   val actorRefFactory = context
   val userId          = new UUID(0,0)
   val nodesActor      = context.actorSelection("/user/main/nodes")
-
-  val RoleString = PathMatcher("""[\da-zA-Z-]{2,36}""".r)
+  val RoleString      = PathMatcher("""[\da-zA-Z-]{2,36}""".r)
 
   def putNodeAction(role: String) = {
     put {
