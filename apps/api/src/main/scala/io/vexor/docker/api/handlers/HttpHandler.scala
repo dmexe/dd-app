@@ -65,6 +65,17 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
     }
   }
 
+  def getNodeInstance(userId: UUID, role: String) = {
+    get {
+      onSuccess(nodesActor ? NodesActor.Command.GetInstance(userId, role)) {
+        case NodeActor.GetInstanceSuccess(instance) =>
+          complete(instance)
+        case e =>
+          complete(UnprocessableEntity, e.toString)
+      }
+    }
+  }
+
   def routes = pathPrefix("api" / "v1") {
     logRequestResponse("api") {
       path("nodes" / RoleString) { role =>
@@ -73,9 +84,12 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
       pathPrefix("proxy") {
         path("credentials" / Segment) { subject =>
           getProxyCredentialsAction(subject)
-        }
+        } ~
+        path("instance" / JavaUUID / RoleString) { (userId, role) =>
+          getNodeInstance(userId, role)
+        } ~
       } ~
-      pathPrefix("certs" / JavaUUID / RoleString) { (userId, role) =>
+      pathPrefix("certs" / RoleString) { (role) =>
         postCertsAction(userId, role)
       }
     }
