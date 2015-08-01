@@ -183,6 +183,54 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       assertPersistentVersions(expected)
     }
 
+    "successfuly get instance" in {
+      val cloudActor = TestProbe()
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
+
+      expectIdleState(nodeActor)
+
+      nodeActor ! NodeActor.Command.GetInstance
+      expectMsgPF(5.seconds) {
+        case NodeActor.GetInstanceFailure(error) =>
+      }
+
+      passIdleState(nodeActor)
+      passNewState(cloudActor)
+      passPendingState(nodeActor, cloudActor)
+
+
+      // pending -> fail
+      nodeActor ! NodeActor.Command.GetInstance
+      cloudActor.expectMsgPF(5.seconds) {
+        case CloudActor.Command.Get(id) =>
+      }
+      cloudActor.reply(CloudActor.GetSuccess(pendingInstance))
+      expectMsgPF(5.seconds) {
+        case NodeActor.GetInstanceFailure(error) =>
+      }
+
+      // active -> succ
+      nodeActor ! NodeActor.Command.GetInstance
+      cloudActor.expectMsgPF(5.seconds) {
+        case CloudActor.Command.Get(id) =>
+      }
+      cloudActor.reply(CloudActor.GetSuccess(activeInstance))
+      expectMsgPF(5.seconds) {
+        case NodeActor.GetInstanceSuccess(instance) =>
+          assert(instance == activeInstance)
+      }
+
+      // fail -> fail
+      nodeActor ! NodeActor.Command.GetInstance
+      cloudActor.expectMsgPF(5.seconds) {
+        case CloudActor.Command.Get(id) =>
+      }
+      cloudActor.reply(CloudActor.GetFailure("noop"))
+      expectMsgPF(5.seconds) {
+        case NodeActor.GetInstanceFailure(error) =>
+      }
+    }
+
     "fail when node wasn't created (State.Idle)" in {
       val cloudActor  = TestProbe()
       val fNodesTable = new NodesTable(reg.session, "nodes") {

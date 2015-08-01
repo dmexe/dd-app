@@ -46,6 +46,16 @@ with DefaultTimeout {
     case Event(Command.Get, data) =>
       stay() replying GetFailure(s"Cannot get a node in a $stateName state with the $data")
 
+    case Event(Command.GetInstance, Data.Node(node)) =>
+      getInstance(node) match {
+        case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.On =>
+          stay() replying GetInstanceSuccess(instance)
+        case error =>
+          stay() replying GetInstanceFailure(error.toString)
+      }
+    case Event(Command.GetInstance, data) =>
+      stay() replying GetInstanceFailure(s"Cannot get a instance in a $stateName state with the $data")
+
     case Event(Command.Status, data) =>
       stay() replying StatusSuccess(stateName, data)
   }
@@ -208,6 +218,7 @@ object NodeActor {
   object Command {
     case class  Create(node: NewNode)
     case object Get
+    case object GetInstance
     case object CreateInstance
     case object AwaitInstanceIsRunning
     case object AwaitInstanceTermination
@@ -244,6 +255,10 @@ object NodeActor {
   sealed trait GetReply
   case class GetSuccess(node: PersistedNode) extends GetReply
   case class GetFailure(e: String) extends GetReply
+
+  sealed trait GetInstanceReply
+  case class GetInstanceSuccess(instance: AbstractCloud.Instance) extends GetInstanceReply
+  case class GetInstanceFailure(e: String) extends GetInstanceReply
 
   def props(db: NodesTable, cloud: ActorRef): Props = Props(new NodeActor(db, cloud))
 }

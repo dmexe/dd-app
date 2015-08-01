@@ -74,6 +74,11 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
       actor forward NodeActor.Command.Get
       stay()
 
+    case Event(Command.GetInstance(userId, role), _) =>
+      val actor   = getNodeActor(userId, role)
+      actor forward NodeActor.Command.GetInstance
+      stay()
+
     case Event(Command.Tick, _) =>
       val cloudIds = db.allRunning() flatMap(_.cloudId)
       ask(cloud, CloudActor.Command.Cleanup(cloudIds))(5.seconds)
@@ -129,6 +134,7 @@ object NodesActor {
     case object Recovered
     case class  Create(userId: UUID, role: String)
     case class  Get(userId: UUID, role: String)
+    case class  GetInstance(userId: UUID, role: String)
     case object Tick
   }
 

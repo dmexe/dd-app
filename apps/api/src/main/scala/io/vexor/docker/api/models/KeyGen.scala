@@ -11,6 +11,7 @@ import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x509._
 import org.bouncycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509v3CertificateBuilder}
 import org.bouncycastle.cert.{X509CertificateHolder, X509v3CertificateBuilder}
+import org.bouncycastle.jce.X509Principal
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
 import org.bouncycastle.openssl.{PEMKeyPair, PEMParser, PEMWriter}
@@ -133,10 +134,14 @@ object KeyGen {
 
   private def getClientCsr(cnName: String) = {
     val keyPair = genKeyPair()
+    val subject =
+      if(cnName.contains("CN=")) {
+        new X500Principal(cnName)
+      } else {
+        new X500Principal(s"CN=$cnName")
+      }
 
-    val p10Builder = new JcaPKCS10CertificationRequestBuilder(
-      new X500Principal(s"CN=$cnName"), keyPair.getPublic
-    )
+    val p10Builder = new JcaPKCS10CertificationRequestBuilder(subject, keyPair.getPublic)
 
     val csBuilder = new JcaContentSignerBuilder("SHA256withRSA")
     val signer    = csBuilder.build(keyPair.getPrivate)
