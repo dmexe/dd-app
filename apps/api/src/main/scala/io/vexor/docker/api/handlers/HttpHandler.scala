@@ -5,7 +5,7 @@ import java.util.UUID
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.pattern.ask
 import io.vexor.docker.api.DefaultTimeout
-import io.vexor.docker.api.actors.{CertsActor, DockerActor, NodeActor, NodesActor}
+import io.vexor.docker.api.actors.{CertsActor, ProxyActor, NodeActor, NodesActor}
 import spray.http.StatusCodes.{NotFound, UnprocessableEntity, InternalServerError}
 import spray.routing.{HttpService, PathMatcher}
 
@@ -17,7 +17,7 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
   val actorRefFactory = context
   val userId          = new UUID(0,0)
   val nodesActor      = context.actorSelection("/user/main/nodes")
-  val dockerActor     = context.actorSelection("/user/main/docker")
+  val proxyActor      = context.actorSelection("/user/main/proxy")
   val certsActor      = context.actorSelection("/user/main/certs")
   val RoleString      = PathMatcher("""[\da-zA-Z-]{2,36}""".r)
 
@@ -43,10 +43,10 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
     }
   }
 
-  def postDockerCredentialsAction(subject: String) = {
-    post {
-      onSuccess(dockerActor ? DockerActor.Command.Credentials(subject)) {
-        case x: DockerActor.CredentialsSuccess =>
+  def getProxyCredentialsAction(subject: String) = {
+    get {
+      onSuccess(proxyActor ? ProxyActor.Command.Credentials(subject)) {
+        case x: ProxyActor.CredentialsSuccess =>
           complete(x)
         case e =>
           complete(UnprocessableEntity, e.toString)
@@ -70,9 +70,9 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
       path("nodes" / RoleString) { role =>
         putNodeAction(role) ~ getNodeAction(role)
       } ~
-      pathPrefix("docker") {
+      pathPrefix("proxy") {
         path("credentials" / Segment) { subject =>
-          postDockerCredentialsAction(subject)
+          getProxyCredentialsAction(subject)
         }
       } ~
       pathPrefix("certs" / JavaUUID / RoleString) { (userId, role) =>

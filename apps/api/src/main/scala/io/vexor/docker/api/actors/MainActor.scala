@@ -65,9 +65,8 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     SshKey(reg.properties, "docker")
   }
 
-  def startDockerActor(dockerCa: CA, clientsCa: CA): Try[ActorRef] = {
-    val dockerActor = context.actorOf(DockerActor.props(dockerCa, clientsCa), "docker")
-    Try(dockerActor)
+  def startProxyActor(dockerCa: CA, clientsCa: CA): Try[ActorRef] = {
+    Try{ context.actorOf(ProxyActor.props(dockerCa, clientsCa), "proxy") }
   }
 
   def startCloudActor(cloud: AbstractCloud): Try[ActorRef] = {
@@ -119,7 +118,7 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
           cloudInit   <- initCloudInit(dockerCa)
           sshKey      <- initSshKey(db)
           cloud       <- initCloud(cloudInit, sshKey)
-          dockerActor <- startDockerActor(dockerCa, clientsCa)
+          dockerActor <- startProxyActor(dockerCa, clientsCa)
           cloudActor  <- startCloudActor(cloud)
           certsActor  <- startCertsActor(clientsCa, db)
           httpActor   <- startHttpActor()

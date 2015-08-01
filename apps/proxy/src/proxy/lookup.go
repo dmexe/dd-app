@@ -18,3 +18,6 @@ func LookupDockerUrl(lookupUrl string) (string, error) {
 
 	return u.Host, nil
 }
+
+func LookupCredentialsUrl(url string) {
+}

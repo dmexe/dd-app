@@ -3,9 +3,9 @@ package io.vexor.docker.api.actors
 import akka.actor.{Actor, ActorLogging, Props}
 import io.vexor.docker.api.models.{KeyGen, CA}
 
-class DockerActor(dockerCa: CA, clientsCa: CA) extends Actor with ActorLogging {
+class ProxyActor(dockerCa: CA, clientsCa: CA) extends Actor with ActorLogging {
 
-  import DockerActor._
+  import ProxyActor._
 
   def getCredentials(subject: String) = {
     val dockerRe   = KeyGen.toPEM(KeyGen.genCert(dockerCa.re, subject))
@@ -22,7 +22,7 @@ class DockerActor(dockerCa: CA, clientsCa: CA) extends Actor with ActorLogging {
   }
 }
 
-object DockerActor {
+object ProxyActor {
 
   object Command {
     case class Credentials(subject: String)
@@ -33,5 +33,5 @@ object DockerActor {
   sealed trait CredentialsReply
   case class CredentialsSuccess(docker: TlsInfo, clients: TlsInfo) extends CredentialsReply
 
-  def props(dockerCa: CA, clientCa: CA): Props = Props(new DockerActor(dockerCa, clientCa))
+  def props(dockerCa: CA, clientCa: CA): Props = Props(new ProxyActor(dockerCa, clientCa))
 }
