@@ -10,7 +10,7 @@ class CA(val id: String, val subject: String, val re: KeyGen.Result, pem: KeyGen
 }
 
 object CA {
-  val issuer = "docker.vexor.io"
+  val issuer = "vexor.io"
 
   def apply(id: String, subject: String, prop: PropertiesTable): CA = {
     val certName = s"$id.cacert"

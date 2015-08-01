@@ -38,8 +38,15 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     }
   }
 
-  def initCloudInit(reg: ModelRegistry): Try[CloudInit] = {
-    val ca = CA("docker", "Docker CA Authority", reg.properties)
+  def initDockerCa(reg: ModelRegistry): Try[CA] = {
+    Try{ CA("docker", "Docker CA Authority", reg.properties) }
+  }
+
+  def initClientsCa(reg: ModelRegistry): Try[CA] = {
+    Try{ CA("clients", "Proxy Clients CA Authority", reg.properties) }
+  }
+
+  def initCloudInit(ca: CA): Try[CloudInit] = {
     CloudInit.docker(ca)
   }
 
@@ -56,6 +63,11 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
 
   def initSshKey(reg: ModelRegistry): Try[SshKey] = {
     SshKey(reg.properties, "docker")
+  }
+
+  def startDockerActor(dockerCa: CA, clientsCa: CA): Try[ActorRef] = {
+    val dockerActor = context.actorOf(DockerActor.props(dockerCa, clientsCa), "docker")
+    Try(dockerActor)
   }
 
   def startCloudActor(cloud: AbstractCloud): Try[ActorRef] = {
@@ -97,13 +109,16 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     case Command.Start =>
       val re: Try[Boolean] =
         for {
-          db         <- initDb(cfg.getString("db.url"))
-          cloudInit  <- initCloudInit(db)
-          sshKey     <- initSshKey(db)
-          cloud      <- initCloud(cloudInit, sshKey)
-          cloudActor <- startCloudActor(cloud)
-          httpActor  <- startHttpActor()
-          nodesActor <- startNodesActor(db, cloudActor)
+          db          <- initDb(cfg.getString("db.url"))
+          dockerCa    <- initDockerCa(db)
+          clientsCa   <- initClientsCa(db)
+          cloudInit   <- initCloudInit(dockerCa)
+          sshKey      <- initSshKey(db)
+          cloud       <- initCloud(cloudInit, sshKey)
+          dockerActor <- startDockerActor(dockerCa, clientsCa)
+          cloudActor  <- startCloudActor(cloud)
+          httpActor   <- startHttpActor()
+          nodesActor  <- startNodesActor(db, cloudActor)
         } yield true
 
     re match {

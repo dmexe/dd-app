@@ -5,9 +5,8 @@ import java.util.UUID
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.pattern.ask
 import io.vexor.docker.api.DefaultTimeout
-import io.vexor.docker.api.actors.NodesActor.Command
-import io.vexor.docker.api.actors.{NodeActor, NodesActor}
-import spray.http.StatusCodes.{NotFound, UnprocessableEntity}
+import io.vexor.docker.api.actors.{DockerActor, NodeActor, NodesActor}
+import spray.http.StatusCodes.{NotFound, UnprocessableEntity, InternalServerError}
 import spray.routing.{HttpService, PathMatcher}
 
 class HttpHandler extends Actor with ActorLogging with HttpService with JsonProtocol with DefaultTimeout {
@@ -18,11 +17,12 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
   val actorRefFactory = context
   val userId          = new UUID(0,0)
   val nodesActor      = context.actorSelection("/user/main/nodes")
+  val dockerActor     = context.actorSelection("/user/main/docker")
   val RoleString      = PathMatcher("""[\da-zA-Z-]{2,36}""".r)
 
   def putNodeAction(role: String) = {
     put {
-      onSuccess(nodesActor ? Command.Create(userId, role)) {
+      onSuccess(nodesActor ? NodesActor.Command.Create(userId, role)) {
         case NodeActor.CreateSuccess(node) =>
           complete(node)
         case NodeActor.CreateFailure(e) =>
@@ -42,9 +42,16 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
     }
   }
 
-  def getDockerAction = {
-    get {
-      complete("OK")
+  def postDockerCredentialsAction = {
+    path("credentials" / Segment) { subject =>
+      post {
+        onSuccess(dockerActor ? DockerActor.Command.Credentials(subject)) {
+          case x: DockerActor.CredentialsSuccess =>
+            complete(x)
+          case e =>
+            complete(InternalServerError, e.toString)
+        }
+      }
     }
   }
 
@@ -62,7 +69,7 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
         putNodeAction(role) ~ getNodeAction(role)
       } ~
       pathPrefix("docker") {
-        getDockerAction ~ putDockerStatsAction
+        postDockerCredentialsAction ~ putDockerStatsAction
       }
     }
   }
