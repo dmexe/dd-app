@@ -5,7 +5,7 @@ import java.util.UUID
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.pattern.ask
 import io.vexor.docker.api.DefaultTimeout
-import io.vexor.docker.api.actors.{DockerActor, NodeActor, NodesActor}
+import io.vexor.docker.api.actors.{CertsActor, DockerActor, NodeActor, NodesActor}
 import spray.http.StatusCodes.{NotFound, UnprocessableEntity, InternalServerError}
 import spray.routing.{HttpService, PathMatcher}
 
@@ -18,6 +18,7 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
   val userId          = new UUID(0,0)
   val nodesActor      = context.actorSelection("/user/main/nodes")
   val dockerActor     = context.actorSelection("/user/main/docker")
+  val certsActor      = context.actorSelection("/user/main/certs")
   val RoleString      = PathMatcher("""[\da-zA-Z-]{2,36}""".r)
 
   def putNodeAction(role: String) = {
@@ -42,23 +43,24 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
     }
   }
 
-  def postDockerCredentialsAction = {
-    path("credentials" / Segment) { subject =>
-      post {
-        onSuccess(dockerActor ? DockerActor.Command.Credentials(subject)) {
-          case x: DockerActor.CredentialsSuccess =>
-            complete(x)
-          case e =>
-            complete(InternalServerError, e.toString)
-        }
+  def postDockerCredentialsAction(subject: String) = {
+    post {
+      onSuccess(dockerActor ? DockerActor.Command.Credentials(subject)) {
+        case x: DockerActor.CredentialsSuccess =>
+          complete(x)
+        case e =>
+          complete(UnprocessableEntity, e.toString)
       }
     }
   }
 
-  def putDockerStatsAction = {
-    path("stats" / JavaUUID / RoleString) { (userId, role) =>
-      put {
-        complete("OK")
+  def postCertsAction(userId: UUID, role: String) = {
+    post {
+      onSuccess(certsActor ? CertsActor.Command.Get(userId, role)) {
+        case x: CertsActor.GetSuccess =>
+          complete(x)
+        case e =>
+          complete(UnprocessableEntity, e.toString)
       }
     }
   }
@@ -69,7 +71,12 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
         putNodeAction(role) ~ getNodeAction(role)
       } ~
       pathPrefix("docker") {
-        postDockerCredentialsAction ~ putDockerStatsAction
+        path("credentials" / Segment) { subject =>
+          postDockerCredentialsAction(subject)
+        }
+      } ~
+      pathPrefix("certs" / JavaUUID / RoleString) { (userId, role) =>
+        postCertsAction(userId, role)
       }
     }
   }

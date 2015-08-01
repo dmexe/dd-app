@@ -81,6 +81,10 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     }
   }
 
+  def startCertsActor(clientsCa: CA, reg: ModelRegistry): Try[ActorRef] = {
+    Try{ context.actorOf(CertsActor.props(reg.certs, clientsCa), "certs") }
+  }
+
   def startHttpActor(): Try[ActorRef] = {
     val httpActor = context.actorOf(HttpHandler.props, "http")
     val fu = IO(Http)(context.system) ? Http.Bind(httpActor, interface = "localhost", port = 3000)
@@ -117,6 +121,7 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
           cloud       <- initCloud(cloudInit, sshKey)
           dockerActor <- startDockerActor(dockerCa, clientsCa)
           cloudActor  <- startCloudActor(cloud)
+          certsActor  <- startCertsActor(clientsCa, db)
           httpActor   <- startHttpActor()
           nodesActor  <- startNodesActor(db, cloudActor)
         } yield true

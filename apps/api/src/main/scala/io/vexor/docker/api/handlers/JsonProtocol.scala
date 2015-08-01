@@ -2,7 +2,7 @@ package io.vexor.docker.api.handlers
 
 import java.util.{Date, UUID}
 
-import io.vexor.docker.api.actors.DockerActor
+import io.vexor.docker.api.actors.{CertsActor, DockerActor}
 import io.vexor.docker.api.models.NodesTable
 import spray.json._
 
@@ -27,7 +27,8 @@ trait JsonProtocol extends DefaultJsonProtocol {
     with WriteOnlyJsonProtocol[Date]
     with WriteToStringJsonProtocol[Date]
 
-  implicit def dockerTlsInfoFormat         = jsonFormat3(DockerActor.TlsInfo)
-  implicit def dockerCredentialsSuccFormat = jsonFormat2(DockerActor.CredentialsSuccess)
-  implicit def persistedNodeFormat         = jsonFormat6(NodesTable.Persisted)
+  implicit def dockerTlsInfoFormat            = jsonFormat3(DockerActor.TlsInfo)
+  implicit def dockerCredentialsSuccessFormat = jsonFormat2(DockerActor.CredentialsSuccess)
+  implicit def persistedNodeFormat            = jsonFormat6(NodesTable.Persisted)
+  implicit def certsGetSuccessFormat          = jsonFormat3(CertsActor.GetSuccess)
 }
