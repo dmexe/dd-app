@@ -5,11 +5,9 @@ import akka.io.IO
 import akka.pattern.ask
 import com.typesafe.config.Config
 import io.vexor.docker.api.DefaultTimeout
-import io.vexor.docker.api.cloud.{CloudInit, AbstractCloud, DigitalOceanCloud}
+import io.vexor.docker.api.cloud.{AbstractCloud, CloudInit, DigitalOceanCloud}
 import io.vexor.docker.api.handlers.HttpHandler
-import io.vexor.docker.api.models.{SshKey, CA, ModelRegistry}
-import io.vexor.docker.api.cloud.{AbstractCloud, CloudInit}
-import io.vexor.docker.api.models.{SshKey, ModelRegistry}
+import io.vexor.docker.api.models.{CA, ModelRegistry, SshKey}
 import spray.can.Http
 
 import scala.concurrent.Await

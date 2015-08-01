@@ -10,7 +10,7 @@ import io.vexor.docker.api.DefaultTimeout
 import io.vexor.docker.api.actors.{NodesActor, NodeActor}
 import io.vexor.docker.api.actors.NodesActor.Command
 import spray.http.StatusCodes.{UnprocessableEntity, NotFound}
-import spray.routing.HttpService
+import spray.routing.{PathMatcher, HttpService}
 
 class HttpHandler extends Actor with ActorLogging with HttpService with JsonProtocol with DefaultTimeout {
 
@@ -20,6 +20,8 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
   val actorRefFactory = context
   val userId          = new UUID(0,0)
   val nodesActor      = context.actorSelection("/user/main/nodes")
+
+  val RoleString = PathMatcher("""[\da-zA-Z-]{2,36}""".r)
 
   def putNodeAction(role: String) = {
     put {
@@ -43,10 +45,27 @@ class HttpHandler extends Actor with ActorLogging with HttpService with JsonProt
     }
   }
 
+  def getDockerAction = {
+    get {
+      complete("OK")
+    }
+  }
+
+  def putDockerStatsAction = {
+    path("stats" / JavaUUID / RoleString) { (userId, role) =>
+      put {
+        complete("OK")
+      }
+    }
+  }
+
   def routes = pathPrefix("api" / "v1") {
     logRequestResponse("api") {
-      path("nodes" / Segment) { role =>
+      path("nodes" / RoleString) { role =>
         putNodeAction(role) ~ getNodeAction(role)
+      } ~
+      pathPrefix("docker") {
+        getDockerAction ~ putDockerStatsAction
       }
     }
   }
