@@ -10,11 +10,11 @@ class CA(val id: String, val subject: String, val re: KeyGen.Result, pem: KeyGen
 }
 
 object CA {
-  val issuer = "cloud.vexor.io"
+  val issuer = "docker.vexor.io"
 
   def apply(id: String, subject: String, prop: PropertiesTable): CA = {
-    val certName = s"$id-cert.pem"
-    val keyName  = s"$id-key.pem"
+    val certName = s"$id.cacert"
+    val keyName  = s"$id.cakey"
 
     val ca  = loadFromDb(prop, certName, keyName) getOrElse genAndSaveToDb(prop, subject, certName, keyName)
     val pem = KeyGen.toPEM(ca)

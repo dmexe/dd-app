@@ -7,7 +7,7 @@ import com.typesafe.config.Config
 import io.vexor.cloud.DefaultTimeout
 import io.vexor.cloud.cloud.{CloudInit, AbstractCloud, DigitalOceanCloud}
 import io.vexor.cloud.handlers.HttpHandler
-import io.vexor.cloud.models.{CA, ModelRegistry}
+import io.vexor.cloud.models.{SshKey, CA, ModelRegistry}
 import spray.can.Http
 
 import scala.concurrent.Await
@@ -54,6 +54,10 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     Success(cloud)
   }
 
+  def initSshKey(reg: ModelRegistry): Try[SshKey] = {
+    SshKey(reg.properties, "docker")
+  }
+
   def startCloudActor(cloud: AbstractCloud): Try[ActorRef] = {
     val cloudActor = context.actorOf(CloudActor.props(cloud), "cloud")
     val fu = cloudActor ? CloudActor.Command.Start
@@ -95,6 +99,7 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
         for {
           db         <- initDb(cfg.getString("db.url"))
           cloudInit  <- initCloudInit(db)
+          sshKey     <- initSshKey(db)
           cloud      <- initCloud(cloudInit)
           cloudActor <- startCloudActor(cloud)
           httpActor  <- startHttpActor()
