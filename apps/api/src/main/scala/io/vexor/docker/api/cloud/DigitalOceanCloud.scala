@@ -6,6 +6,7 @@ import com.myjeeva.digitalocean.impl.DigitalOceanClient
 import com.myjeeva.digitalocean.pojo.{Droplet, Image, Key, Region}
 import io.vexor.docker.api.cloud.AbstractCloud.Status
 import io.vexor.docker.api.Utils.OptionToTry
+import io.vexor.docker.api.models.SshKey
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClientBuilder}
 
@@ -14,12 +15,14 @@ import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
 
-class DigitalOceanCloud(token: String, region: String, keyId: Int, size: String, cloudInit: CloudInit) extends AbstractCloud {
+class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: CloudInit, sshKey: SshKey) extends AbstractCloud {
   import DigitalOceanCloud._
 
   lazy val api  = new DigitalOceanClient("v2", token, buildHttpClient())
+
+  var cachedKey: Try[Key] = Failure(new RuntimeException("Key not cached"))
 
   def create(userId: UUID, role: String, version: Int) : Try[Instance] = {
     val fqdn       = s"$userId.$role.v$version.$region.docker"
@@ -27,13 +30,14 @@ class DigitalOceanCloud(token: String, region: String, keyId: Int, size: String,
 
     for {
       image    <- getDockerImage
+      key      <- getDropletKey
       userData <- cloudInit.getContent(fqdn)
-      instance <- createDroplet(userId, role, version, fqdn, userData, image)
+      instance <- createDroplet(userId, role, version, fqdn, userData, image, key)
     } yield instance
   }
 
   def all(): Try[List[Instance]] = {
-    val fu = Future { allAvailableDroplets() }
+    val fu = Future { getAvailableDroplets() }
     Try { Await.result(fu, opTimeout) }
   }
 
@@ -43,7 +47,7 @@ class DigitalOceanCloud(token: String, region: String, keyId: Int, size: String,
     re map (_.getIsRequestSuccess)
   }
 
-  private def createDroplet(userId: UUID, role: String, version: Int, fqdn: String, userData: String, image: Image): Try[Instance] = {
+  private def createDroplet(userId: UUID, role: String, version: Int, fqdn: String, userData: String, image: Image, key: Key): Try[Instance] = {
     val newDroplet = new Droplet()
     newDroplet.setName(fqdn)
     newDroplet.setSize(size)
@@ -51,7 +55,7 @@ class DigitalOceanCloud(token: String, region: String, keyId: Int, size: String,
     newDroplet.setImage(image)
     newDroplet.setUserData(userData)
 
-    val keys = List[Key](new Key(keyId))
+    val keys = List[Key](key)
     newDroplet.setKeys(keys)
 
     val fu = Future { api.createDroplet(newDroplet) }
@@ -84,7 +88,33 @@ class DigitalOceanCloud(token: String, region: String, keyId: Int, size: String,
     images
       .filter(_.getRegions.toList.contains(region))
       .find(_.getSlug == "coreos-stable")
-      .toTry(new RuntimeException(s"Cannot found image with slug=coreos-stable and region=$region"))
+      .toTry(s"Cannot found image with slug=coreos-stable and region=$region")
+  }
+
+  private def getDropletKey: Try[Key] = {
+    cachedKey orElse loadKey() orElse createKey()
+  }
+
+  private def loadKey(): Try[Key] = {
+    val keyName  = getClass.getName
+    val keys     = getAvailableKeys()
+    val maybeKey = keys.find(_.getName == keyName)
+    maybeKey.foreach { key =>
+      cachedKey = Success(key)
+    }
+    maybeKey.toTry(s"Key $keyName not found")
+  }
+
+  private def createKey(): Try[Key] = {
+    val keyName = getClass.getName
+    val newKey = new Key()
+    newKey.setName(keyName)
+    newKey.setPublicKey(sshKey.publicKey)
+    val tryKey = Try{ api.createKey(newKey) }
+    tryKey.foreach{ key =>
+      cachedKey = Success(key)
+    }
+    tryKey
   }
 
   @tailrec
@@ -98,24 +128,24 @@ class DigitalOceanCloud(token: String, region: String, keyId: Int, size: String,
   }
 
   @tailrec
-  private def allAvailableDroplets(collected:List[Instance] = List.empty[Instance], pageNo:Int = 1): List[Instance] = {
+  private def getAvailableDroplets(collected:List[Instance] = List.empty[Instance], pageNo:Int = 1): List[Instance] = {
     val newDroplets = api.getAvailableDroplets(pageNo).getDroplets.toList
 
     if(newDroplets.isEmpty) {
       collected
     } else {
       val newInstances = newDroplets.flatMap(dropletToInstance) ++ collected
-      allAvailableDroplets(newInstances, pageNo + 1)
+      getAvailableDroplets(newInstances, pageNo + 1)
     }
   }
 
   @tailrec
-  private def allAvailableKeys(collected:List[Key] = List.empty[Key], pageNo:Int = 1): List[Key] = {
+  private def getAvailableKeys(collected:List[Key] = List.empty[Key], pageNo:Int = 1): List[Key] = {
     val newKeys = api.getAvailableKeys(pageNo).getKeys.toList
     if (newKeys.isEmpty) {
       collected
     } else {
-      allAvailableKeys(newKeys ++ collected, pageNo + 1)
+      getAvailableKeys(newKeys ++ collected, pageNo + 1)
     }
   }
 }

@@ -23,6 +23,10 @@ object Utils {
         case None    => Failure(e)
       }
     }
+
+    def toTry(s: String): Try[A] = {
+      obj.toTry(new RuntimeException(s))
+    }
   }
 }
 

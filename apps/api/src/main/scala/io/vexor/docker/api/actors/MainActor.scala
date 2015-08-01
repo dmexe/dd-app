@@ -45,13 +45,13 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
     CloudInit.docker(ca)
   }
 
-  def initCloud(cloudInit: CloudInit): Try[AbstractCloud] = {
+  def initCloud(cloudInit: CloudInit, sshKey: SshKey): Try[AbstractCloud] = {
     val cloud = new DigitalOceanCloud(
       cfg.getString("cloud.digitalocean.token"),
       cfg.getString("cloud.digitalocean.region"),
-      cfg.getInt("cloud.digitalocean.keyId"),
       cfg.getString("cloud.digitalocean.size"),
-      cloudInit
+      cloudInit,
+      sshKey
     )
     Success(cloud)
   }
@@ -102,7 +102,7 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
           db         <- initDb(cfg.getString("db.url"))
           cloudInit  <- initCloudInit(db)
           sshKey     <- initSshKey(db)
-          cloud      <- initCloud(cloudInit)
+          cloud      <- initCloud(cloudInit, sshKey)
           cloudActor <- startCloudActor(cloud)
           httpActor  <- startHttpActor()
           nodesActor <- startNodesActor(db, cloudActor)
