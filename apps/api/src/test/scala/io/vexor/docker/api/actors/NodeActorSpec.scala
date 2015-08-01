@@ -1,5 +1,6 @@
 package io.vexor.docker.api.actors
 
+import java.time.Instant
 import java.util.UUID
 
 import akka.actor.{ActorRef, Props}
@@ -22,7 +23,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
   val role       = "node-actor-spec"
   val newNode    = NodesTable.New(userId, role)
 
-  val pendingInstance  = TestCloud.Instance(instanceId, "name", userId, role, 1, AbstractCloud.Status.Pending)
+  val pendingInstance  = TestCloud.Instance(instanceId, "name", userId, role, 1, AbstractCloud.Status.Pending, Instant.now())
   val activeInstance   = pendingInstance.copy(status = AbstractCloud.Status.On)
   val inactiveInstance = pendingInstance.copy(status = AbstractCloud.Status.Off)
   val brokenInstance   = pendingInstance.copy(status = AbstractCloud.Status.Broken)

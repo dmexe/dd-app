@@ -20,7 +20,7 @@ class CASpec extends WordSpecLike with Matchers with BeforeAndAfterAll with Test
   "A CA" must {
     "successfuly load, generate and save root certificates" in {
       val ca = CA("id", "subject", db)
-      assert(ca.cert.getIssuerDN.toString == "CN=docker.vexor.io")
+      assert(ca.cert.getIssuerDN.toString == "CN=vexor.io")
       assert(ca.cert.getSubjectDN.toString == "CN=subject")
 
       Thread.sleep(100)

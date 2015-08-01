@@ -2,7 +2,7 @@ package io.vexor.docker.api.actors
 
 import java.util.UUID
 
-import akka.actor.{ActorRef, Props, ActorSystem}
+import akka.actor.{ActorRef, Props}
 import akka.testkit.{TestKit, TestProbe, ImplicitSender, TestKitBase}
 import io.vexor.docker.api.TestAppEnv
 import io.vexor.docker.api.models.{ModelRegistry, NodesTable, DB}
