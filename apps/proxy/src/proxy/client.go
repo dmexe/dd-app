@@ -80,7 +80,7 @@ func (c *Client) Proxy() {
 	c.log.Info("Done")
 }
 
-func NewClient(workerId int, conn *tls.Conn, tlsConfig *tls.Config, lookupUrl string) (*Client, error) {
+func NewClient(workerId int, conn *tls.Conn, tlsConfig *tls.Config, endpoint string) (*Client, error) {
 	logger := tlsConnLog(conn).WithFields(log.Fields{
 		"worker": workerId,
 	})
@@ -95,19 +95,14 @@ func NewClient(workerId int, conn *tls.Conn, tlsConfig *tls.Config, lookupUrl st
 		}
 	}
 
-	dockerHost, err := LookupDockerUrl(lookupUrl)
+	resolver, err := NewResolver(conn, endpoint, logger)
 	if err != nil {
 		closer(err)
 		return nil, err
 	}
+	logger.Info("Got ", resolver.Addr)
 
-	addr, err := net.ResolveTCPAddr("tcp", dockerHost)
-	if err != nil {
-		closer(err)
-		return nil, err
-	}
-
-	serverConn, err := net.DialTCP("tcp", nil, addr)
+	serverConn, err := net.DialTCP("tcp", nil, resolver.Addr)
 	if err != nil {
 		closer(err)
 		return nil, err

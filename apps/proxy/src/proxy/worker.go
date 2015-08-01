@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	log "github.com/Sirupsen/logrus"
 	"net"
+	"strings"
 )
 
 type Worker struct {
@@ -14,13 +15,16 @@ type Worker struct {
 	lookupUrl string
 }
 
-func NewWorker(n int, tlsProxy *tls.Config, tlsNode *tls.Config, lookupUrl string) *Worker {
+func NewWorker(n int, tlsProxy *tls.Config, tlsNode *tls.Config, lookupUrl string, apiUrl string) *Worker {
+	url := strings.Replace(lookupUrl, ":api", apiUrl, 1)
+	log.Info("Using ", url, " as resolver endpoint")
+
 	w := &Worker{
 		pending:   make(chan *tls.Conn, n),
 		Num:       n,
 		tlsProxy:  tlsProxy,
 		tlsNode:   tlsNode,
-		lookupUrl: lookupUrl,
+		lookupUrl: url,
 	}
 
 	return w
@@ -31,8 +35,6 @@ func (w *Worker) Handle(index int) {
 		client, err := NewClient(index, conn, w.tlsNode, w.lookupUrl)
 		if err == nil {
 			client.Proxy()
-		} else {
-			tlsConnLog(conn).Error(err)
 		}
 	}
 }

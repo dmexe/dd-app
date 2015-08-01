@@ -1,19 +1,19 @@
 package io.vexor.docker.api.actors
 
 import java.time.OffsetDateTime
-import java.util.{Date, UUID}
+import java.util.UUID
 
-import akka.actor.{FSM, Props, ActorLogging}
-import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
+import akka.actor.{ActorLogging, FSM, Props}
 import io.vexor.docker.api.cloud.AbstractCloud
 
-import scala.util.Success
+import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
+import scala.util.{Failure, Success}
 
 class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.Data] with ActorLogging {
 
-  import context.dispatcher
   import CloudActor._
+  import context.dispatcher
 
   val tickInterval      = 20.seconds
   val gapCleanupMinutes = 1
@@ -57,7 +57,8 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
           val newInstances = instances ++ List(instance)
           logInstances(newInstances)
           stay() using Data.Instances(newInstances) replying CreateSuccess(instance)
-        case error =>
+        case Failure(error) =>
+          throw error
           stay() replying CreateFailure(error.toString)
       }
   }

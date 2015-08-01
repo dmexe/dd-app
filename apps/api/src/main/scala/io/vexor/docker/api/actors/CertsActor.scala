@@ -11,7 +11,7 @@ class CertsActor(db: CertsTable, clientsCa: CA) extends Actor with ActorLogging 
 
   def createCert(userId: UUID, role: String): Record = {
     val subject    = s"CN=${userId}, OU=${role}"
-    val clientCert = KeyGen.toPEM(KeyGen.genCert(clientsCa.re, subject))
+    val clientCert = KeyGen.toPEM(KeyGen.genCert(clientsCa.re, subject, KeyGen.Flag.ClientAuth))
     val rec        = Record(userId, role, clientCert.cert, clientCert.privateKey)
     db.save(rec)
     rec

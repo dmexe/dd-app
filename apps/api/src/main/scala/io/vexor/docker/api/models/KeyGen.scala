@@ -21,6 +21,10 @@ import org.bouncycastle.pkcs.jcajce.{JcaPKCS10CertificationRequest, JcaPKCS10Cer
 
 object KeyGen {
 
+  object Flag extends Enumeration {
+    val None, ClientAuth = Value
+  }
+
   Security.addProvider(new BouncyCastleProvider())
 
   def genCa(issuerCN: String, subjectCN: String): Result = {
@@ -49,7 +53,7 @@ object KeyGen {
     Result(cert, keyPair.getPrivate, keyPair.getPublic)
   }
 
-  def genCert(ca: Result, cnName: String): Result = {
+  def genCert(ca: Result, cnName: String, flag: Flag.Value = Flag.None): Result = {
 
     val (csr, keyPair) = getClientCsr(cnName)
 
@@ -63,12 +67,14 @@ object KeyGen {
       jcaRequest.getPublicKey
     )
 
-    certificateBuilder
-      .addExtension(
+    if (flag == Flag.ClientAuth) {
+      certificateBuilder
+        .addExtension(
           Extension.extendedKeyUsage,
           false,
           new ExtendedKeyUsage(KeyPurposeId.id_kp_clientAuth)
         )
+    }
 
     val signer = new JcaContentSignerBuilder("SHA1WithRSAEncryption").setProvider("BC").build(ca.privateKey)
     val cert = new JcaX509CertificateConverter().setProvider("BC").getCertificate(certificateBuilder.build(signer))

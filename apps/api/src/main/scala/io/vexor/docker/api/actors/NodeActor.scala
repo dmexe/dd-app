@@ -8,7 +8,7 @@ import io.vexor.docker.api.cloud.AbstractCloud
 import io.vexor.docker.api.models.NodesTable
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
-import scala.util.{Try, Success}
+import scala.util.{Try, Success, Failure}
 
 class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.State, NodeActor.Data] with ActorLogging
 with DefaultTimeout {
@@ -149,7 +149,7 @@ with DefaultTimeout {
           goto(State.Active) using Data.Node(activeNode)
         case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
           stay()
-        case error =>
+        case Failure(error) =>
           gotoShutdown(node, error.toString)
       }
   }

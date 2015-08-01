@@ -9,7 +9,7 @@ class ProxyActor(dockerCa: CA, clientsCa: CA, nodesActor: ActorRef) extends Acto
   import ProxyActor._
 
   def getCredentials(subject: String) = {
-    val dockerRe   = KeyGen.toPEM(KeyGen.genCert(dockerCa.re, subject))
+    val dockerRe   = KeyGen.toPEM(KeyGen.genCert(dockerCa.re, subject, KeyGen.Flag.ClientAuth))
     val clientsRe  = KeyGen.toPEM(KeyGen.genCert(clientsCa.re, subject))
     val dockerTls  = TlsInfo(dockerCa.certPem, dockerRe.cert, dockerRe.privateKey)
     val clientsTls = TlsInfo(clientsCa.certPem, clientsRe.cert, clientsRe.privateKey)

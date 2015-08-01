@@ -63,7 +63,7 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
     val re = Try { Await.result(fu, opTimeout) }
     re map { d =>
       val tm   = Instant.ofEpochMilli(d.getCreatedDate.getTime)
-      val addr = d.getNetworks.getVersion4Networks.head.getIpAddress
+      val addr = Option(d.getNetworks.getVersion4Networks) map (_.head.getIpAddress) getOrElse ""
       Instance(d.getId.toString, d.getName, addr, userId, role, version, Status.Pending, tm)
     }
   }
