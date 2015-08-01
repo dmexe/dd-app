@@ -7,14 +7,16 @@ import (
 
 var (
 	bindAddr  *string = flag.String("b", ":2376", "bind address")
-	credUrl   *string = flag.String("c", "http://localhost:3000/api/v1/docker/credentials/localhost", "credentials url")
-	lookupUrl *string = flag.String("l", "http://localhost:3000/api/v1/docker/lookup/:subject", "lookup url")
+	apiUrl    *string = flag.String("a", "http://localhost:3000", "API url")
+	credUrl   *string = flag.String("c", ":api/api/v1/proxy/credentials/:subject", "credentials endpoint")
+	lookupUrl *string = flag.String("l", ":api/api/v1/proxy/lookup/:subject", "lookup endpoint")
+	subject   *string = flag.String("s", "localhost", "subject")
 )
 
 func main() {
 	flag.Parse()
 
-	cred, err := NewCredentials(*credUrl)
+	cred, err := NewCredentials(*apiUrl, *subject, *credUrl)
 	if err != nil {
 		log.Fatal(err)
 	}
