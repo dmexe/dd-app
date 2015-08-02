@@ -3,61 +3,31 @@ package io.vexor.docker.api.models
 import java.time.Instant
 import java.util.{UUID,Date}
 
-import scala.collection.JavaConversions._
 
 import com.datastax.driver.core.{Row, Session}
-import io.vexor.docker.api.Utils.StringSquish
 
-import scala.util.Try
-
-class NodesTable(db: Session, tableName: String) extends  {
+class NodesTable(val session: Session, val tableName: String) extends QueryBuilder {
 
   import NodesTable._
   import NodesTable.Status.Conversions.{ToInt, ToValue}
 
-  val lastTableName    = s"last_$tableName"
-  val versionTableName = s"version_$tableName"
+  val verTable  = new VersionTable(session, s"version_$tableName")
+  val lastTable = new LastTable(session, s"last_$tableName")
+  val orderBy   = "version".qDesc()
 
-  def up(): Try[Boolean] = {
-    val sql = Seq(
-      s"""
-        CREATE TABLE IF NOT EXISTS $versionTableName (
-          user_id    UUID,
-          role       text,
-          version    int,
-          status     int,
-          cloud_id   text,
-          created_at timestamp,
-          PRIMARY KEY((user_id, role), version)
-        ) WITH CLUSTERING ORDER BY (version DESC)
-        """.squish,
-      s"""
-        CREATE TABLE IF NOT EXISTS $lastTableName (
-          user_id    UUID,
-          role       text,
-          version    int,
-          status     int,
-          cloud_id   text,
-          created_at timestamp,
-          PRIMARY KEY((user_id, role))
-        )
-        """.squish,
-      s"CREATE INDEX IF NOT EXISTS ${lastTableName}_on_status_idx ON $lastTableName (status)"
-    )
-    Try {
-      sql.map(db.execute)
-      true
-    }
+  def up(): Unit = {
+    verTable.up()
+    lastTable.up()
   }
 
-  def down() {
-    db.execute(s"DROP TABLE IF EXISTS $versionTableName")
-    db.execute(s"DROP TABLE IF EXISTS $lastTableName")
+  override def down(): Unit = {
+    verTable.down()
+    lastTable.down()
   }
 
-  def truncate(): Unit = {
-    db.execute(s"TRUNCATE $versionTableName")
-    db.execute(s"TRUNCATE $lastTableName")
+  override def truncate(): Unit = {
+    verTable.truncate()
+    lastTable.truncate()
   }
 
   private def fromRow(row: Row): Persisted = {
@@ -70,40 +40,22 @@ class NodesTable(db: Session, tableName: String) extends  {
     Persisted(userId, role, version, status.toValue, Option(cloudId), createdAt)
   }
 
-  private def oneInLastNodes(userId: UUID, role: String): Option[Persisted] = {
-    val re = db.execute(
-      s"SELECT * FROM $versionTableName WHERE user_id=? AND role=? LIMIT 1",
-      userId,
-      role
-    ).one()
-    Option(re) map fromRow
-  }
-
-  private def saveInLastNodes(rec:Persisted): Persisted = {
-    db.execute(
-      s"INSERT INTO $lastTableName (user_id, role, version, status, cloud_id, created_at) VALUES(?,?,?,?,?,?)",
-      rec.userId,
-      rec.role,
-      rec.version : Integer,
-      rec.status.toInt,
-      rec.cloudId.orNull,
-      Date.from(rec.createdAt)
-    )
-    rec
-  }
-
   private def allByStatus(statuses: List[Status.Value]): List[Persisted] = {
     statuses flatMap { s: Status.Value =>
-      db.execute(s"SELECT * FROM $lastTableName WHERE status = ?", s.toInt)
-        .all()
-        .map(fromRow)
+      lastTable.selectFrom()
+        .where("status".qEq(s.toInt))
+        .all(fromRow)
     }
   }
 
-  def nextVersion(r: Record): Int = {
-    val sql = s"SELECT version FROM $versionTableName WHERE user_id=? AND role=? $ORDER_BY LIMIT 1"
-    val ver = db.execute(sql, r.userId, r.role).one()
-    Option(ver).map(_.getInt("version")).getOrElse(0) + 1
+  def nextVersion(rec: Record): Int = {
+    val found =
+      verTable.selectColumn("version")
+        .orderBy(orderBy)
+        .where("user_id".qEq(rec.userId))
+        .and("role".qEq(rec.role))
+        .one map(_.getInt("version")) getOrElse 0
+    found + 1
   }
 
   def save(newRec: New): Persisted = {
@@ -112,16 +64,8 @@ class NodesTable(db: Session, tableName: String) extends  {
     val status    = Status.New
     val rec       = Persisted(newRec.userId, newRec.role, version, status, None, createdAt)
 
-    db.execute(
-      s"INSERT INTO $versionTableName (user_id, role, version, status, created_at) VALUES (?, ?, ?, ?, ?)",
-      rec.userId,
-      rec.role,
-      rec.version: Integer,
-      rec.status.toInt,
-      Date.from(rec.createdAt)
-    )
-
-    saveInLastNodes(rec)
+    verTable.insert(rec)
+    lastTable.insert(rec)
     rec
   }
 
@@ -139,50 +83,37 @@ class NodesTable(db: Session, tableName: String) extends  {
     val createdAt  = Instant.now()
     val newRec     = Persisted(prev.userId, prev.role, version, newStatus, newCloudId, createdAt)
 
-    db.execute(
-      s"INSERT INTO $versionTableName (user_id, role, version, status, cloud_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-      newRec.userId,
-      newRec.role,
-      newRec.version: Integer,
-      newRec.status.toInt,
-      newRec.cloudId.orNull,
-      Date.from(newRec.createdAt)
-    )
+    verTable.insert(newRec)
+    lastTable.insert(newRec)
 
-    saveInLastNodes(newRec)
     newRec
   }
 
-  def one(userId: UUID, role: String, version: Int): Option[Persisted] = {
-    val row = db.execute(
-      s"SELECT * FROM $versionTableName WHERE user_id=? AND role=? AND version=?",
-      userId,
-      role,
-      version: Integer
-    ).one()
-    Option(row) map fromRow
+  def one(userId: UUID, role: String, version: Integer): Option[Persisted] = {
+    verTable.selectFrom()
+      .orderBy(orderBy)
+      .where("user_id".qEq(userId)).and("role".qEq(role)).and("version".qEq(version))
+      .one(fromRow)
   }
 
   def one(userId: UUID, role: String): Option[Persisted] = {
-    val row = db.execute(
-      s"SELECT * FROM $versionTableName WHERE user_id=? AND role=? $ORDER_BY LIMIT 1",
-      userId,
-      role
-    ).one()
-    Option(row) map fromRow
+    verTable.selectFrom()
+      .orderBy(orderBy)
+      .where("user_id".qEq(userId)).and("role".qEq(role))
+      .one(fromRow)
   }
 
   def last(userId: UUID, role: String): Option[Persisted] = {
-    oneInLastNodes(userId, role)
+    lastTable.selectFrom()
+      .where("user_id".qEq(userId)).and("role".qEq(role))
+      .one(fromRow)
   }
 
   def allVersionsFor(userId: UUID, role: String): List[Persisted] = {
-    val re = db.execute(
-      s"SELECT * FROM $versionTableName WHERE user_id=? AND role=? $ORDER_BY",
-      userId,
-      role
-    ).all()
-    re.toList map fromRow
+    verTable.selectFrom()
+      .orderBy(orderBy)
+      .where("user_id".qEq(userId)).and("role".qEq(role))
+      .all(fromRow)
   }
 
   def allRunning() : List[Persisted] = {
@@ -193,7 +124,6 @@ class NodesTable(db: Session, tableName: String) extends  {
 object NodesTable extends {
 
   val TABLE_NAME = "nodes"
-  val ORDER_BY   = "ORDER BY version DESC"
 
   object Status extends Enumeration {
     val New, Pending, Active, Finished, Broken, Undefined = Value
@@ -239,4 +169,55 @@ object NodesTable extends {
     cloudId:   Option[String],
     createdAt: Instant
   ) extends Record
+
+  trait Inserter extends QueryBuilder {
+
+    import NodesTable.Status.Conversions.ToInt
+
+    def insert(rec: Persisted) = {
+      insertInto()
+        .value("user_id",    rec.userId)
+        .value("role",       rec.role)
+        .value("version",    rec.version)
+        .value("status",     rec.status.toInt)
+        .value("cloud_id",   rec.cloudId.orNull)
+        .value("created_at", Date.from(rec.createdAt))
+        .execute()
+    }
+  }
+
+  class VersionTable(val session: Session, val tableName: String) extends Inserter {
+    def up() = {
+      s"""
+        CREATE TABLE IF NOT EXISTS $tableName (
+          user_id    UUID,
+          role       text,
+          version    int,
+          status     int,
+          cloud_id   text,
+          created_at timestamp,
+          PRIMARY KEY((user_id, role), version)
+        ) WITH CLUSTERING ORDER BY (version DESC)
+      """.execute()
+    }
+  }
+
+  class LastTable(val session: Session, val tableName: String) extends Inserter {
+    def up(): Unit = {
+      s"""
+        CREATE TABLE IF NOT EXISTS $tableName (
+          user_id    UUID,
+          role       text,
+          version    int,
+          status     int,
+          cloud_id   text,
+          created_at timestamp,
+          PRIMARY KEY((user_id, role))
+        )
+      """.execute()
+      s"""
+        CREATE INDEX IF NOT EXISTS ${tableName}_on_status_idx ON $tableName (status)
+      """.execute()
+    }
+  }
 }

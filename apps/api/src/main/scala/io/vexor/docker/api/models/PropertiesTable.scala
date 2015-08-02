@@ -1,35 +1,18 @@
 package io.vexor.docker.api.models
 
 import com.datastax.driver.core.{Row, Session}
-import io.vexor.docker.api.Utils.StringSquish
 
-import scala.util.Try
-
-class PropertiesTable(db: Session, tableName: String) extends  {
+class PropertiesTable(val session: Session, val tableName: String) extends QueryBuilder {
   import PropertiesTable._
 
-  def up(): Try[Boolean] = {
-    val sql = Seq(
-      s"""
-        CREATE TABLE IF NOT EXISTS $tableName (
-          name    text,
-          value   text,
-          PRIMARY KEY(name)
-        )
-      """.squish
-    )
-    Try {
-      sql.map(db.execute)
-      true
-    }
-  }
-
-  def down() {
-    db.execute(s"DROP TABLE IF EXISTS $tableName")
-  }
-
-  def truncate(): Unit = {
-    db.execute(s"TRUNCATE $tableName")
+  def up() {
+    s"""
+      CREATE TABLE IF NOT EXISTS $tableName (
+        name    text,
+        value   text,
+        PRIMARY KEY(name)
+      )
+    """.execute()
   }
 
   private def fromRow(row: Row): Record = {
@@ -39,17 +22,15 @@ class PropertiesTable(db: Session, tableName: String) extends  {
   }
 
   def save(rec: Record): Record = {
-    db.execute(
-      s"INSERT INTO $tableName (name, value) VALUES (?, ?)",
-      rec.name,
-      rec.value
-    )
+    insertInto()
+      .value("name",  rec.name)
+      .value("value", rec.value)
+      .execute()
     rec
   }
 
   def one(name: String): Option[Record] = {
-    val row = db.execute(s"SELECT * FROM $tableName WHERE name=?", name).one()
-    Option(row) map fromRow
+    selectFrom().where("name".qEq(name)).one(fromRow)
   }
 }
 

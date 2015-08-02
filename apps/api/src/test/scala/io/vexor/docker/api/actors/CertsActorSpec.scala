@@ -43,7 +43,7 @@ with BeforeAndAfterEach {
       val actor = system.actorOf(CertsActor.props(db, ca))
 
       actor ! CertsActor.Command.Get(userId, role)
-      expectMsgPF(3.seconds) {
+      expectMsgPF(5.seconds) {
         case CertsActor.GetSuccess(clientCa, cert, key) =>
           assert(clientCa == ca.certPem)
           cert should include("BEGIN CERTIFICATE")
@@ -51,7 +51,7 @@ with BeforeAndAfterEach {
       }
 
       actor ! CertsActor.Command.Get(userId, role)
-      expectMsgPF(3.seconds) {
+      expectMsgPF(5.seconds) {
         case CertsActor.GetSuccess(clientCa, cert, key) =>
           assert(clientCa == ca.certPem)
           cert should include("BEGIN CERTIFICATE")
