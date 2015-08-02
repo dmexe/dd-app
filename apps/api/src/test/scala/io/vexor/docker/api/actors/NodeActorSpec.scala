@@ -49,7 +49,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     expectMsg(NodeActor.StatusSuccess(State.Idle, Data.Empty))
 
     // Idle: send create
-    nodeActor ! Command.Create(newNode)
+    nodeActor ! Command.Create
     expectMsgPF(5.seconds) {
       case NodeActor.CreateSuccess(node) =>
         assert(node.status == NodesTable.Status.New)
@@ -155,7 +155,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
 
   def getNodeActor(db: NodesTable, cloud: ActorRef): ActorRef = {
-    val inst = Props(new NodeActor(db, cloud) {
+    val inst = Props(new NodeActor(db, cloud, userId, role) {
       override lazy val tickInterval   = 300.millis
     })
     system.actorOf(inst)
@@ -233,13 +233,13 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when node wasn't created (State.Idle)" in {
       val cloudActor  = TestProbe()
-      val fNodesTable = new NodesTable(reg.session, "nodes") {
+      val fNodesTable = new NodesTable(reg.session, s"nodesNodeActorSpec") {
         override def save(node: NodesTable.New): Option[NodesTable.Persisted] = None
       }
       val nodeActor  = getNodeActor(fNodesTable, cloudActor.ref)
 
       // Idle: send create and get fail
-      nodeActor ! Command.Create(newNode)
+      nodeActor ! Command.Create
       expectMsgPF(5.seconds) {
         case NodeActor.CreateFailure(error) =>
       }
@@ -305,7 +305,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
     "fail when await instance is running: timeout reached (State.Pending)" in {
       val cloudActor = TestProbe()
-      val nodeActorProps = Props(new NodeActor(db, cloudActor.ref) {
+      val nodeActorProps = Props(new NodeActor(db, cloudActor.ref, userId, role) {
         override lazy val tickInterval   = 1.minute
         override lazy val pendingTimeout = 100.millis
       })
@@ -355,60 +355,62 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     "successfuly recovery actor state from New" in {
+      val node       = db.save(newNode).get
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
-      val node       = db.save(newNode).get
 
-      nodeActor ! NodeActor.Command.Recovery(node)
-      expectMsg(NodeActor.RecoverySuccess(NodeActor.State.New))
+      nodeActor ! NodeActor.Command.Status
+      expectMsgPF(5.seconds) {
+        case NodeActor.StatusSuccess(NodeActor.State.New, _) =>
+      }
     }
 
     "successfuly recovery actor state from Pending" in {
+      val node       = db.save(newNode).get
+      db.save(node, status = NodesTable.Status.Pending).get
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
-      var node       = db.save(newNode).get
-      node = node.copy(status = NodesTable.Status.Pending)
 
-      nodeActor ! NodeActor.Command.Recovery(node)
-      expectMsg(NodeActor.RecoverySuccess(NodeActor.State.Pending))
+      nodeActor ! NodeActor.Command.Status
+      expectMsgPF(5.seconds) {
+        case NodeActor.StatusSuccess(NodeActor.State.Pending, _) =>
+      }
     }
 
     "successfuly recovery actor state from Active" in {
+      val node       = db.save(newNode).get
+      db.save(node, status = NodesTable.Status.Active).get
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
-      var node       = db.save(newNode).get
-      node = node.copy(status = NodesTable.Status.Active)
 
-      nodeActor ! NodeActor.Command.Recovery(node)
-      expectMsg(NodeActor.RecoverySuccess(NodeActor.State.Active))
+      nodeActor ! NodeActor.Command.Status
+      expectMsgPF(5.seconds) {
+        case NodeActor.StatusSuccess(NodeActor.State.Active, _) =>
+      }
     }
 
-    "fail to recovery actor state from Finished" in {
+    "successfuly recovery actor state from Finished" in {
+      val node       = db.save(newNode).get
+      db.save(node, status = NodesTable.Status.Finished).get
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
-      var node       = db.save(newNode).get
-      node = node.copy(status = NodesTable.Status.Finished)
 
-      nodeActor ! NodeActor.Command.Recovery(node)
+      nodeActor ! NodeActor.Command.Status
       expectMsgPF(5.seconds) {
-        case NodeActor.RecoveryFailure(_, _) =>
+        case NodeActor.StatusSuccess(NodeActor.State.Idle, _) =>
       }
-
-      expectIdleState(nodeActor)
     }
 
-    "fail to recovery actor state from Broken" in {
+    "successfuly recovery actor state from Broken" in {
+      val node       = db.save(newNode).get
+      db.save(node, status = NodesTable.Status.Broken).get
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
-      var node       = db.save(newNode).get
-      node = node.copy(status = NodesTable.Status.Broken)
 
-      nodeActor ! NodeActor.Command.Recovery(node)
+      nodeActor ! NodeActor.Command.Status
       expectMsgPF(5.seconds) {
-        case NodeActor.RecoveryFailure(_, _) =>
+        case NodeActor.StatusSuccess(NodeActor.State.Idle, _) =>
       }
-
-      expectIdleState(nodeActor)
     }
   }
 }

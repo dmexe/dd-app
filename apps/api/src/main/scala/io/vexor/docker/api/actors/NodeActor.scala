@@ -1,5 +1,7 @@
 package io.vexor.docker.api.actors
 
+import java.util.UUID
+
 import akka.actor.FSM
 import akka.actor._
 import akka.pattern.ask
@@ -10,7 +12,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import scala.util.{Try, Success, Failure}
 
-class NodeActor(db: NodesTable, cloudActor: ActorRef) extends FSM[NodeActor.State, NodeActor.Data] with ActorLogging
+class NodeActor(db: NodesTable, cloudActor: ActorRef, userId: UUID, role: String) extends FSM[NodeActor.State, NodeActor.Data] with ActorLogging
 with DefaultTimeout {
 
   import NodeActor._
@@ -18,10 +20,10 @@ with DefaultTimeout {
   lazy val tickInterval   = 5.seconds
   lazy val pendingTimeout = 5.minutes
 
-  startWith(State.Idle, Data.Empty)
+  recoveryState()
 
   when(State.Idle) {
-    awaitNodeCreation orElse awaitRecovery
+    awaitNodeCreation
   }
 
   when(State.New) {
@@ -37,9 +39,9 @@ with DefaultTimeout {
   }
 
   whenUnhandled {
-    case Event(Command.Create(newNode), Data.Node(node)) =>
+    case Event(Command.Create, Data.Node(node)) =>
       stay() replying CreateSuccess(node)
-    case Event(Command.Create(newNode), data) =>
+    case Event(Command.Create, data) =>
       stay() replying CreateFailure(s"Cannot create a new node in a $stateName state with the data $data")
 
     case Event(Command.Get, Data.Node(node)) =>
@@ -59,14 +61,10 @@ with DefaultTimeout {
 
     case Event(Command.Status, data) =>
       stay() replying StatusSuccess(stateName, data)
-
-    case Event(a, b) =>
-      log.error(s"Unhandled $a $b")
-      stay()
   }
 
   onTransition {
-    case State.Idle -> State.New =>
+    case _ -> State.New =>
       self ! Command.CreateInstance
 
     case State.New -> State.Pending =>
@@ -103,7 +101,8 @@ with DefaultTimeout {
 
   // Idle
   def awaitNodeCreation: StateFunction = {
-    case Event(Command.Create(newNode), Data.Empty) =>
+    case Event(Command.Create, Data.Empty) =>
+      val newNode = NodesTable.New(userId, role)
       db.save(newNode) match {
         case Some(node) =>
           goto(State.New) using Data.Node(node) replying CreateSuccess(node)
@@ -111,23 +110,6 @@ with DefaultTimeout {
           val msg = s"Cannot fetch created record [node=$newNode]"
           log.error(msg)
           goto(State.Idle) using Data.Empty replying CreateFailure(msg)
-      }
-  }
-
-  def awaitRecovery: StateFunction = {
-    case Event(Command.Recovery(node), _) =>
-      log.info(s"Received recovery [node=$node]")
-      node.status match {
-        case NodeStatus.New =>
-          goto(State.New) using Data.Node(node) replying RecoverySuccess(State.New)
-        case NodeStatus.Pending =>
-          goto(State.Pending) using Data.Node(node) replying RecoverySuccess(State.Pending)
-        case NodeStatus.Active =>
-          goto(State.Active) using Data.Node(node) replying RecoverySuccess(State.Active)
-        case unknown =>
-          val msg = s"Don't known how to recovery from a $unknown node state"
-          log.error(msg)
-          goto(State.Idle) using Data.Empty replying RecoveryFailure(msg, node)
       }
   }
 
@@ -184,6 +166,20 @@ with DefaultTimeout {
   //
   // Helpers
   //
+  def recoveryState(): Unit = {
+      val maybeNode = db.one(userId, role)
+      log.info(s"Recovery [node=$maybeNode]")
+      maybeNode match {
+        case Some(node) if node.status == NodeStatus.New =>
+          startWith(State.New, Data.Node(node))
+        case Some(node) if node.status == NodeStatus.Pending =>
+          startWith(State.Pending, Data.Node(node))
+        case Some(node) if node.status == NodeStatus.Active =>
+          startWith(State.Active, Data.Node(node))
+        case _ =>
+          startWith(State.Idle, Data.Empty)
+      }
+  }
 
   def getInstance(node: PersistedNode): Try[CloudActor.GetReply] = {
     val id = node.cloudId.getOrElse("")
@@ -226,7 +222,7 @@ object NodeActor {
   val  CloudCommand  = CloudActor.Command
 
   object Command {
-    case class  Create(node: NewNode)
+    case object Create
     case object Get
     case object GetInstance
     case object CreateInstance
@@ -234,7 +230,6 @@ object NodeActor {
     case object AwaitInstanceTermination
     case class  Persisted(node: PersistedNode)
     case object Status
-    case class  Recovery(node: PersistedNode)
   }
 
   sealed trait State
@@ -258,10 +253,6 @@ object NodeActor {
   sealed trait StatusResult
   case class StatusSuccess(state: State, data: Data) extends StatusResult
 
-  sealed trait RecoveryReply
-  case class RecoverySuccess(state: State) extends RecoveryReply
-  case class RecoveryFailure(e: String, node: PersistedNode) extends RecoveryReply
-
   sealed trait GetReply
   case class GetSuccess(node: PersistedNode) extends GetReply
   case class GetFailure(e: String) extends GetReply
@@ -270,5 +261,5 @@ object NodeActor {
   case class GetInstanceSuccess(instance: AbstractCloud.Instance) extends GetInstanceReply
   case class GetInstanceFailure(e: String) extends GetInstanceReply
 
-  def props(db: NodesTable, cloud: ActorRef): Props = Props(new NodeActor(db, cloud))
+  def props(db: NodesTable, cloud: ActorRef, userId: UUID, role: String): Props = Props(new NodeActor(db, cloud, userId, role))
 }

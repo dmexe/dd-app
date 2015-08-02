@@ -4,7 +4,7 @@ version := "1.0"
 
 scalaVersion := "2.11.7"
 
-val akkaV  = "2.3.12"
+val akkaV  = "2.4-M2"
 val sprayV = "1.3.2"
 
 // enablePlugins(JDKPackagerPlugin)

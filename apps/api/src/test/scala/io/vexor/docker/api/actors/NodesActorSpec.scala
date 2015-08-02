@@ -55,29 +55,5 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       nodesActor ! NodesActor.Command.Start
       expectMsg(NodesActor.StartSuccess)
     }
-
-    "fail to start with error in recovery" in {
-      val cloud = TestProbe()
-      val child = TestProbe()
-
-      val nodesActor = system.actorOf(Props(new NodesActor(db, cloud.ref){
-        override def getNodeActor(userId: UUID, role: String): ActorRef = {
-          child.ref
-        }
-      }))
-
-      db.save(NodesTable.New(userId, "n1")).get
-      nodesActor ! NodesActor.Command.Start
-
-      child.expectMsgPF(3.seconds) {
-        case NodeActor.Command.Recovery(_) =>
-      }
-
-      child.reply(new RuntimeException("noop"))
-
-      expectMsgPF(3.seconds) {
-        case NodesActor.StartFailure(_) =>
-      }
-    }
   }
 }

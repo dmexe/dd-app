@@ -13,7 +13,6 @@ import scala.util.{Try,Success}
 class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, NodesActor.Data] with ActorLogging {
 
   import NodesActor._
-  import context.dispatcher
 
   val cleanupInterval = 1.minute
 
@@ -41,32 +40,19 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
 
   def awaitStart: StateFunction = {
     case Event(Command.Start, _) =>
-      val timeout = 10.seconds
       val nodes   = db.allRunning()
 
       log.info(s"Found ${nodes.size} nodes need to be recovered")
-      val futures =
-        Future.sequence(
-          nodes.map { node =>
-            val nodeActor = getNodeActor(node.userId, node.role)
-            ask(nodeActor, NodeActor.Command.Recovery(node))(timeout).mapTo[NodeActor.RecoveryReply]
-          }
-        )
+      nodes.foreach{ n => getNodeActor(n.userId, n.role) }
 
-      val re = Try{ Await.result(futures, timeout) }
-      re match {
-        case Success(results: List[NodeActor.RecoveryReply]) =>
-          processRecoveredNodeResult(results)
-        case error =>
-          goto(State.Idle) using Data.Error(error.toString) replying StartFailure(error.toString)
-      }
+      log.info(s"Successfuly recovered ${nodes.size} nodes")
+      goto(State.Active) using Data.Empty replying StartSuccess
   }
 
   def awaitNodeActions: StateFunction = {
     case Event(Command.Create(userId, role), _) =>
       val actor   = getNodeActor(userId, role)
-      val newNode = NodesTable.New(userId, role)
-      actor forward NodeActor.Command.Create(newNode)
+      actor forward NodeActor.Command.Create
       stay()
 
     case Event(Command.Get(userId, role), _) =>
@@ -85,26 +71,10 @@ class NodesActor(db: NodesTable, cloud: ActorRef) extends FSM[NodesActor.State, 
       stay()
   }
 
-  //
-  //
-  //
-
-  def processRecoveredNodeResult(results: List[NodeActor.RecoveryReply]): State = {
-    if(results.nonEmpty) {
-      results.foreach {
-        case NodeActor.RecoveryFailure(e, node) =>
-          log.error(s"Recovery failure: $e [node=$node]")
-        case _ =>
-      }
-      log.info(s"Successfuly recovered ${results.size} nodes")
-    }
-    goto(State.Active) using Data.Empty replying StartSuccess
-  }
-
   def getNodeActor(userId: UUID, role: String): ActorRef = {
     val name = s"node-$userId-$role"
     context.child(name) getOrElse {
-      context.actorOf(NodeActor.props(db, cloud), name)
+      context.actorOf(NodeActor.props(db, cloud, userId, role), name)
     }
   }
 }
@@ -119,7 +89,6 @@ object NodesActor {
   object State {
     case object Idle     extends State
     case object Active   extends State
-    case object Recovery extends State
   }
 
   sealed trait Data
