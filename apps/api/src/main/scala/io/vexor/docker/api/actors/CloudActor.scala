@@ -70,7 +70,7 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
           case Success(i: InstanceList) => i
           case _ => oldInstances
         }
-      if (newInstances != oldInstances) {
+      if (newInstances.map(_.id).sorted != oldInstances.map(_.id).sorted) {
         logInstances(newInstances)
         stay() using Data.Instances(newInstances)
       } else {
@@ -91,9 +91,6 @@ class CloudActor(cloud: AbstractCloud) extends FSM[CloudActor.State, CloudActor.
   def awaitCleanup: StateFunction = {
     case Event(Command.Cleanup(existingIds), Data.Instances(instances)) =>
       val gap = OffsetDateTime.now().minusMinutes(gapCleanupMinutes).toInstant
-
-      println(instances.toString)
-      println(gap.toString)
 
       val ids = instances filter(_.createdAt.isBefore(gap)) map(_.id) diff existingIds
       if(ids.nonEmpty) {

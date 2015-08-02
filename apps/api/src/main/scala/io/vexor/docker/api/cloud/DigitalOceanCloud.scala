@@ -156,7 +156,7 @@ class DigitalOceanCloud(token: String, region: String, size: String, cloudInit: 
 }
 
 object DigitalOceanCloud {
-  val opTimeout = 5.seconds
+  val opTimeout = 3.seconds
   val nameRe    = """^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(\w+)\.v(\d+)""".r
 
   case class Instance(id: String, name: String, addr: String, userId: UUID, role:String, version:Int, status: Status.Value, createdAt:Instant) extends AbstractCloud.Instance

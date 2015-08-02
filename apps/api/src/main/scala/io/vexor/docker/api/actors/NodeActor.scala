@@ -15,7 +15,8 @@ with DefaultTimeout {
 
   import NodeActor._
 
-  val tickInterval = 5.seconds
+  lazy val tickInterval   = 5.seconds
+  lazy val pendingTimeout = 5.minutes
 
   startWith(State.Idle, Data.Empty)
 
@@ -27,7 +28,7 @@ with DefaultTimeout {
     createInstanceForNode
   }
 
-  when(State.Pending) {
+  when(State.Pending, stateTimeout = pendingTimeout) {
     awaitInstanceIsRunning orElse handlePersisted
   }
 
@@ -58,6 +59,10 @@ with DefaultTimeout {
 
     case Event(Command.Status, data) =>
       stay() replying StatusSuccess(stateName, data)
+
+    case Event(a, b) =>
+      log.error(s"Unhandled $a $b")
+      stay()
   }
 
   onTransition {
@@ -147,11 +152,16 @@ with DefaultTimeout {
         case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.On =>
           val activeNode = node.copy(status = NodeStatus.Active)
           goto(State.Active) using Data.Node(activeNode)
-        case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
-          stay()
+        case Success(CloudActor.GetSuccess(instance)) if Seq(CloudStatus.Off, CloudStatus.Broken).contains(instance.status) =>
+          gotoShutdown(node, s"Instance is ${instance.status}")
         case Failure(error) =>
-          gotoShutdown(node, error.toString)
+          log.error(error.toString)
+          stay()
+        case _ =>
+          stay()
       }
+    case Event(StateTimeout, Data.Node(node)) =>
+      gotoShutdown(node, s"Pending timeout $pendingTimeout was reached")
   }
 
   // Active
@@ -182,13 +192,13 @@ with DefaultTimeout {
   }
 
   def gotoShutdown(node: PersistedNode, status: CloudStatus.Value): State = {
-    log.info(s"Node successfuly finished [instance=$status]")
+    log.info(s"Node successfuly finished [instance.status=$status]")
     db.save(node, status = NodeStatus.Finished)
     goto(State.Idle) using Data.Empty
   }
 
   def gotoShutdown(node: PersistedNode, error: String): State = {
-    log.error(s"Node shutdown with error: $error")
+    log.error(s"Node shutdown with error: $error [node=$node]")
     db.save(node, status = NodeStatus.Broken)
     goto(State.Idle) using Data.Empty
   }

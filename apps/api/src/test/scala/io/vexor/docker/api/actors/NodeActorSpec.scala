@@ -11,7 +11,7 @@ import io.vexor.docker.api.cloud.{AbstractCloud, TestCloud}
 import io.vexor.docker.api.models.{ModelRegistry, NodesTable}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, Matchers, WordSpecLike}
 
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{DurationInt,FiniteDuration}
 
 class NodeActorSpec extends TestKitBase with ImplicitSender
 with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with TestAppEnv {
@@ -156,7 +156,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
   def getNodeActor(db: NodesTable, cloud: ActorRef): ActorRef = {
     val inst = Props(new NodeActor(db, cloud) {
-      override val tickInterval = 300.millis
+      override lazy val tickInterval   = 300.millis
     })
     system.actorOf(inst)
   }
@@ -279,23 +279,50 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
-      failPendingWith(cloudActor, CloudActor.CreateSuccess(brokenInstance))
+      failPendingWith(cloudActor, CloudActor.GetSuccess(brokenInstance))
       expectIdleState(nodeActor)
 
       val expected = List((3, "Broken"),(2,"Pending"),(1, "New"))
       assertPersistentVersions(expected)
     }
 
-    "fail when await instance is running: unhandled error (State.Pending)" in {
-      val cloudActor  = TestProbe()
+    "success when await instance is running: unhandled error (State.Pending)" in {
+      val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
       failPendingWith(cloudActor, "noop")
+
+      nodeActor ! Command.Status
+      expectMsgPF(5.seconds) {
+        case NodeActor.StatusSuccess(State.Pending, _) =>
+      }
+
+      val expected = List((2,"Pending"),(1, "New"))
+      assertPersistentVersions(expected)
+    }
+
+    "fail when await instance is running: timeout reached (State.Pending)" in {
+      val cloudActor = TestProbe()
+      val nodeActorProps = Props(new NodeActor(db, cloudActor.ref) {
+        override lazy val tickInterval   = 1.minute
+        override lazy val pendingTimeout = 100.millis
+      })
+      val nodeActor = system.actorOf(nodeActorProps)
+
+      passIdleState(nodeActor)
+      passNewState(cloudActor)
+
+      nodeActor ! Command.Status
+      expectMsgPF(5.seconds) {
+        case NodeActor.StatusSuccess(State.Pending, _) =>
+      }
+
+      Thread.sleep(500)
       expectIdleState(nodeActor)
 
-      val expected = List((3, "Broken"),(2,"Pending"),(1, "New"))
+      val expected = List((3, "Broken"), (2,"Pending"),(1, "New"))
       assertPersistentVersions(expected)
     }
 
