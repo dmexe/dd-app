@@ -6,7 +6,7 @@ import io.vexor.docker.api.TestAppEnv
 import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class CertsTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with TestAppEnv {
-  val reg    = ModelRegistry(dbUrl, "CertsTableSpec").get
+  val reg    = ModelRegistry(dbUrl, "CertsTableSpec")
   val db     = reg.certs
   val userId = new UUID(0,0)
 
@@ -31,7 +31,7 @@ class CertsTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll w
       val rec2 = db.one(userId, "role")
       assert(rec2.isEmpty)
 
-      val rec3 = db.save(rec1).get
+      val rec3 = db.save(rec1)
       val rec4 = db.one(rec1.userId, rec1.role).get
       assert(rec4 == rec1)
     }

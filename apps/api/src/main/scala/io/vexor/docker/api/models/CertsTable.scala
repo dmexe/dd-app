@@ -44,7 +44,7 @@ class CertsTable(db: Session, tableName: String) extends  {
     Record(userId, role, cert, key)
   }
 
-  def save(rec: Record): Option[Record] = {
+  def save(rec: Record): Record = {
     db.execute(
       s"INSERT INTO $tableName (user_id, role, cert, key) VALUES (?, ?, ?, ?)",
       rec.userId,
@@ -52,7 +52,7 @@ class CertsTable(db: Session, tableName: String) extends  {
       rec.cert,
       rec.key
     )
-    Option(rec)
+    rec
   }
 
   def one(userId: UUID, role: String): Option[Record] = {

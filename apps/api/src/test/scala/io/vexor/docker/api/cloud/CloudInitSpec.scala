@@ -7,7 +7,7 @@ import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecL
 
 class CloudInitSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach
 with TestAppEnv {
-  val reg     = ModelRegistry(dbUrl, "CloudInitSpec").get
+  val reg     = ModelRegistry(dbUrl, "CloudInitSpec")
   val db      = reg.properties
 
   override def beforeAll() : Unit = {

@@ -38,13 +38,13 @@ class PropertiesTable(db: Session, tableName: String) extends  {
     Record(name, value)
   }
 
-  def save(rec: Record): Option[Record] = {
+  def save(rec: Record): Record = {
     db.execute(
       s"INSERT INTO $tableName (name, value) VALUES (?, ?)",
       rec.name,
       rec.value
     )
-    one(rec.name)
+    rec
   }
 
   def one(name: String): Option[Record] = {

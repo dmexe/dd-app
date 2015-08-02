@@ -3,18 +3,14 @@ package io.vexor.docker.api.models
 import java.io.ByteArrayOutputStream
 import com.jcraft.jsch.KeyPair
 
-import scala.util.Try
-
 object SshKey {
 
   val CP   = "US-ASCII"
 
-  def apply(db: PropertiesTable, id: String): Try[SshKey] = {
+  def apply(db: PropertiesTable, id: String): SshKey = {
     val pubKeyName  = s"$id.sshpub"
     val privKeyName = s"$id.sshpriv"
-    Try {
-      load(db, id, pubKeyName, privKeyName) getOrElse genAndSave(db, id, pubKeyName, privKeyName)
-    }
+    load(db, id, pubKeyName, privKeyName) getOrElse genAndSave(db, id, pubKeyName, privKeyName)
   }
 
   private def load(db: PropertiesTable, id: String, pubKeyName: String, privKeyName: String): Option[SshKey] = {

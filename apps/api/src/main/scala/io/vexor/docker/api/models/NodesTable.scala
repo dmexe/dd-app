@@ -1,6 +1,7 @@
 package io.vexor.docker.api.models
 
-import java.util.{Date, UUID}
+import java.time.Instant
+import java.util.{UUID,Date}
 
 import scala.collection.JavaConversions._
 
@@ -65,7 +66,7 @@ class NodesTable(db: Session, tableName: String) extends  {
     val version   = row.getInt("version")
     val status    = row.getInt("status")
     val cloudId   = row.getString("cloud_id")
-    val createdAt = row.getDate("created_at")
+    val createdAt = row.getDate("created_at").toInstant
     Persisted(userId, role, version, status.toValue, Option(cloudId), createdAt)
   }
 
@@ -78,7 +79,7 @@ class NodesTable(db: Session, tableName: String) extends  {
     Option(re) map fromRow
   }
 
-  private def saveInLastNodes(rec:Persisted): Option[Persisted] = {
+  private def saveInLastNodes(rec:Persisted): Persisted = {
     db.execute(
       s"INSERT INTO $lastTableName (user_id, role, version, status, cloud_id, created_at) VALUES(?,?,?,?,?,?)",
       rec.userId,
@@ -86,9 +87,9 @@ class NodesTable(db: Session, tableName: String) extends  {
       rec.version : Integer,
       rec.status.toInt,
       rec.cloudId.orNull,
-      rec.createdAt
+      Date.from(rec.createdAt)
     )
-    oneInLastNodes(rec.userId, rec.role)
+    rec
   }
 
   private def allByStatus(statuses: List[Status.Value]): List[Persisted] = {
@@ -105,23 +106,26 @@ class NodesTable(db: Session, tableName: String) extends  {
     Option(ver).map(_.getInt("version")).getOrElse(0) + 1
   }
 
-  def save(rec: New): Option[Persisted] = {
-    val version = nextVersion(rec)
+  def save(newRec: New): Persisted = {
+    val version   = nextVersion(newRec)
+    val createdAt = Instant.now()
+    val status    = Status.New
+    val rec       = Persisted(newRec.userId, newRec.role, version, status, None, createdAt)
 
     db.execute(
-      s"INSERT INTO $versionTableName (user_id, role, version, status, created_at) VALUES (?, ?, ?, 0, dateOf(now()))",
+      s"INSERT INTO $versionTableName (user_id, role, version, status, created_at) VALUES (?, ?, ?, ?, ?)",
       rec.userId,
       rec.role,
-      version: Integer
+      rec.version: Integer,
+      rec.status.toInt,
+      Date.from(rec.createdAt)
     )
 
-    for {
-      maybeRec  <- one(rec.userId, rec.role, version)
-      maybeLast <- saveInLastNodes(maybeRec)
-    } yield maybeRec
+    saveInLastNodes(rec)
+    rec
   }
 
-  def save(prev: Persisted, status: Status.Value = Status.Undefined, cloudId: Option[String] = None): Option[Persisted] = {
+  def save(prev: Persisted, status: Status.Value = Status.Undefined, cloudId: Option[String] = None): Persisted = {
     val version = prev.version + 1
 
     val newStatus =
@@ -132,20 +136,21 @@ class NodesTable(db: Session, tableName: String) extends  {
       }
 
     val newCloudId = cloudId orElse prev.cloudId
+    val createdAt  = Instant.now()
+    val newRec     = Persisted(prev.userId, prev.role, version, newStatus, newCloudId, createdAt)
 
     db.execute(
-      s"INSERT INTO $versionTableName (user_id, role, version, status, cloud_id, created_at) VALUES (?, ?, ?, ?, ?, dateOf(now()))",
-      prev.userId,
-      prev.role,
-      version: Integer,
-      newStatus.toInt,
-      newCloudId.orNull
+      s"INSERT INTO $versionTableName (user_id, role, version, status, cloud_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      newRec.userId,
+      newRec.role,
+      newRec.version: Integer,
+      newRec.status.toInt,
+      newRec.cloudId.orNull,
+      Date.from(newRec.createdAt)
     )
 
-    for {
-      maybeRec  <- one(prev.userId, prev.role, version)
-      maybeLast <- saveInLastNodes(maybeRec)
-    } yield maybeRec
+    saveInLastNodes(newRec)
+    newRec
   }
 
   def one(userId: UUID, role: String, version: Int): Option[Persisted] = {
@@ -232,6 +237,6 @@ object NodesTable extends {
     version:   Int,
     status:    Status.Value,
     cloudId:   Option[String],
-    createdAt: Date
+    createdAt: Instant
   ) extends Record
 }

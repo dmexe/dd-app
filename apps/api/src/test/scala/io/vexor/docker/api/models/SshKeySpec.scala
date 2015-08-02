@@ -5,7 +5,7 @@ import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecL
 
 class SshKeySpec extends WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with TestAppEnv {
 
-  val reg = ModelRegistry(dbUrl, "SshKeySpec").get
+  val reg = ModelRegistry(dbUrl, "SshKeySpec")
   val db  = reg.properties
 
   override def beforeAll() : Unit = {
@@ -24,14 +24,14 @@ class SshKeySpec extends WordSpecLike with Matchers with BeforeAndAfterAll with 
 
   "A SshKey" must {
     "successfully generate ssh key" in {
-      val sshKey = SshKey(db, "test").get
+      val sshKey = SshKey(db, "test")
 
       sshKey.publicKey should startWith("ssh-rsa")
       sshKey.publicKey should endWith("test\n")
 
       sshKey.privateKey should include("BEGIN RSA PRIVATE KEY")
 
-      val sshKey2 = SshKey(db, "test").get
+      val sshKey2 = SshKey(db, "test")
       sshKey2.privateKey should be(sshKey.privateKey)
       sshKey2.publicKey should be(sshKey.publicKey)
     }

@@ -103,14 +103,8 @@ with DefaultTimeout {
   def awaitNodeCreation: StateFunction = {
     case Event(Command.Create, Data.Empty) =>
       val newNode = NodesTable.New(userId, role)
-      db.save(newNode) match {
-        case Some(node) =>
-          goto(State.New) using Data.Node(node) replying CreateSuccess(node)
-        case None =>
-          val msg = s"Cannot fetch created record [node=$newNode]"
-          log.error(msg)
-          goto(State.Idle) using Data.Empty replying CreateFailure(msg)
-      }
+      val node = db.save(newNode)
+      goto(State.New) using Data.Node(node) replying CreateSuccess(node)
   }
 
   // New
@@ -202,11 +196,8 @@ with DefaultTimeout {
   def persistNode(actor: ActorRef, oldData: Data, newData: Data): Unit = {
     (oldData, newData) match {
       case (Data.Node(oldNode), Data.Node(newNode)) =>
-        db.save(
-          oldNode,
-          status  = newNode.status,
-          cloudId = newNode.cloudId
-        ) foreach { node => actor ! Command.Persisted(node) }
+        val node = db.save(oldNode, status  = newNode.status, cloudId = newNode.cloudId)
+        actor ! Command.Persisted(node)
       case _ =>
     }
   }

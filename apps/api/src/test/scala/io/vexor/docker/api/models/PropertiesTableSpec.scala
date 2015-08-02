@@ -5,7 +5,7 @@ import io.vexor.docker.api.TestAppEnv
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class PropertiesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
-  val reg = ModelRegistry(dbUrl, "PropertiesTableSpec").get
+  val reg = ModelRegistry(dbUrl, "PropertiesTableSpec")
   val db  = reg.properties
 
   override def beforeAll() : Unit = {
@@ -21,8 +21,9 @@ class PropertiesTableSpec extends WordSpecLike with Matchers with BeforeAndAfter
   "A PropertiesTable" must {
     "successfuly save and fetch record" in {
       val rec1 = PropertiesTable.Record("name", "value")
-      val rec2 = db.save(rec1).get
+      val rec2 = db.save(rec1)
       val rec3 = db.one(rec2.name).get
+      assert(rec2 == rec3)
     }
   }
 }

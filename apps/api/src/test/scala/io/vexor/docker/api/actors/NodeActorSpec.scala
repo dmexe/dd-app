@@ -17,7 +17,7 @@ class NodeActorSpec extends TestKitBase with ImplicitSender
 with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach with TestAppEnv {
 
   val userId     = new UUID(0,0)
-  val reg        = ModelRegistry(dbUrl, "NodeActorSpec").get
+  val reg        = ModelRegistry(dbUrl, "NodeActorSpec")
   val db         = reg.nodes
   val instanceId = "0"
   val role       = "node-actor-spec"
@@ -231,24 +231,6 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       }
     }
 
-    "fail when node wasn't created (State.Idle)" in {
-      val cloudActor  = TestProbe()
-      val fNodesTable = new NodesTable(reg.session, s"nodesNodeActorSpec") {
-        override def save(node: NodesTable.New): Option[NodesTable.Persisted] = None
-      }
-      val nodeActor  = getNodeActor(fNodesTable, cloudActor.ref)
-
-      // Idle: send create and get fail
-      nodeActor ! Command.Create
-      expectMsgPF(5.seconds) {
-        case NodeActor.CreateFailure(error) =>
-      }
-
-      expectIdleState(nodeActor)
-
-      assertPersistentVersions(List.empty)
-    }
-
     "fail when instance wasn't created: error in cloud provider (State.New)" in {
       val cloudActor  = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
@@ -355,7 +337,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     "successfuly recovery actor state from New" in {
-      val node       = db.save(newNode).get
+      val node       = db.save(newNode)
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 
@@ -366,8 +348,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     "successfuly recovery actor state from Pending" in {
-      val node       = db.save(newNode).get
-      db.save(node, status = NodesTable.Status.Pending).get
+      val node       = db.save(newNode)
+      db.save(node, status = NodesTable.Status.Pending)
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 
@@ -378,8 +360,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     "successfuly recovery actor state from Active" in {
-      val node       = db.save(newNode).get
-      db.save(node, status = NodesTable.Status.Active).get
+      val node       = db.save(newNode)
+      db.save(node, status = NodesTable.Status.Active)
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 
@@ -390,8 +372,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     "successfuly recovery actor state from Finished" in {
-      val node       = db.save(newNode).get
-      db.save(node, status = NodesTable.Status.Finished).get
+      val node       = db.save(newNode)
+      db.save(node, status = NodesTable.Status.Finished)
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 
@@ -402,8 +384,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     "successfuly recovery actor state from Broken" in {
-      val node       = db.save(newNode).get
-      db.save(node, status = NodesTable.Status.Broken).get
+      val node       = db.save(newNode)
+      db.save(node, status = NodesTable.Status.Broken)
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 

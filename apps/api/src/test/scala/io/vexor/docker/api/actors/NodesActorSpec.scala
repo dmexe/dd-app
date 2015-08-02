@@ -14,7 +14,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
 
   val userId     = new UUID(0,0)
   val tableName  = "nodes_node_actor"
-  val reg        = ModelRegistry(dbUrl, "NodesActorSpec").get
+  val reg        = ModelRegistry(dbUrl, "NodesActorSpec")
   val db         = reg.nodes
 
   val instanceId = "0"
@@ -46,8 +46,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     }
 
     "successfuly start with some nodes through recovery" in {
-      val n1 = db.save(NodesTable.New(userId, "n1")).get
-      val n2 = db.save(NodesTable.New(userId, "n2")).get
+      val n1 = db.save(NodesTable.New(userId, "n1"))
+      val n2 = db.save(NodesTable.New(userId, "n2"))
 
       val cloud = TestProbe()
       val nodesActor = system.actorOf(NodesActor.props(db, cloud.ref))

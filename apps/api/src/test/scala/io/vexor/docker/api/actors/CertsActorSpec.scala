@@ -12,7 +12,7 @@ class CertsActorSpec extends TestKitBase with ImplicitSender
 with WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv
 with BeforeAndAfterEach {
 
-  val reg    = ModelRegistry(dbUrl, "CertsActorSpec").get
+  val reg    = ModelRegistry(dbUrl, "CertsActorSpec")
   val db     = reg.certs
   val userId = new UUID(0,0)
   val role   = "role"

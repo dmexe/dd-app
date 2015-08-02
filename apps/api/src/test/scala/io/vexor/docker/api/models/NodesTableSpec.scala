@@ -10,7 +10,7 @@ import io.vexor.docker.api.models.NodesTable.Status
 
 class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll with TestAppEnv {
   val userId  = new UUID(0,0)
-  val reg     = ModelRegistry(dbUrl, "NodesTableSpec").get
+  val reg     = ModelRegistry(dbUrl, "NodesTableSpec")
   val db      = reg.nodes
 
   override def beforeAll() : Unit = {
@@ -28,20 +28,20 @@ class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll w
       val n0 = NodesTable.New(userId, "n")
       val a0 = NodesTable.New(userId, "a")
 
-      val a1 = db.save(a0).get
-      val n1 = db.save(n0).get
+      val a1 = db.save(a0)
+      val n1 = db.save(n0)
       assert(List(n1, a1) == db.allRunning())
 
-      val n2 = db.save(n1, status = Status.Pending).get
+      val n2 = db.save(n1, status = Status.Pending)
       assert(List(a1, n2) == db.allRunning())
 
-      val n3 = db.save(n2, status = Status.Active).get
+      val n3 = db.save(n2, status = Status.Active)
       assert(List(a1, n3) == db.allRunning())
 
-      val n4 = db.save(n3, status = Status.Finished).get
+      val n4 = db.save(n3, status = Status.Finished)
       assert(List(a1) == db.allRunning())
 
-      val n5 = db.save(n4, status = Status.Broken).get
+      val n5 = db.save(n4, status = Status.Broken)
       assert(List(a1) == db.allRunning())
     }
 
@@ -49,66 +49,47 @@ class NodesTableSpec extends WordSpecLike with Matchers with BeforeAndAfterAll w
       val role   = "default"
       val nRec = NodesTable.New(userId, role)
 
-      var re  = db.save(nRec)
-      re match {
-        case Some(NodesTable.Persisted(pUserId, pRole, pVersion, pStatus, pCloudId, _)) =>
-          assert(pUserId  == userId)
-          assert(pRole    == role)
-          assert(pVersion == 1)
-          assert(pStatus  == Status.New)
-          assert(pCloudId.isEmpty)
-        case unknown =>
-          fail(s"unknown $unknown")
-      }
-      val pRec  = re.get
+      var rec  = db.save(nRec)
+
+      assert(rec.userId  == userId)
+      assert(rec.role    == role)
+      assert(rec.version == 1)
+      assert(rec.status  == Status.New)
+      assert(rec.cloudId.isEmpty)
+
       val pLast = db.last(userId, role).get
-      assert(pRec == pLast)
+      assert(rec == pLast)
 
-      re = db.save(pRec, status = Status.Pending)
-      re match {
-        case Some(NodesTable.Persisted(pUserId, pRole, pVersion, pStatus, pCloudId, _)) =>
-          assert(pUserId  == userId)
-          assert(pRole    == role)
-          assert(pVersion == 2)
-          assert(pStatus  == Status.Pending)
-          assert(pCloudId.isEmpty)
-        case unknown =>
-          fail(s"unknown $unknown")
-      }
-      val ppRec = re.get
+      rec = db.save(rec, status = Status.Pending)
+      assert(rec.userId  == userId)
+      assert(rec.role    == role)
+      assert(rec.version == 2)
+      assert(rec.status  == Status.Pending)
+      assert(rec.cloudId.isEmpty)
+
       val ppLast = db.last(userId, role).get
-      assert(ppRec == ppLast)
+      assert(rec == ppLast)
 
-      re = db.save(ppRec, cloudId = Some("cloudId"))
-      re match {
-        case Some(NodesTable.Persisted(pUserId, pRole, pVersion, pStatus, pCloudId, _)) =>
-          assert(pUserId  == userId)
-          assert(pRole    == role)
-          assert(pVersion == 3)
-          assert(pStatus  == Status.Pending)
-          assert(pCloudId.get == "cloudId")
-        case unknown =>
-          fail(s"unknown $unknown")
-      }
-      val pppRec = re.get
+      rec = db.save(rec, cloudId = Some("cloudId"))
+      assert(rec.userId  == userId)
+      assert(rec.role    == role)
+      assert(rec.version == 3)
+      assert(rec.status  == Status.Pending)
+      assert(rec.cloudId.get == "cloudId")
+
       val pppLast = db.last(userId, role).get
-      assert(pppRec == pppLast)
+      assert(rec == pppLast)
 
       val nnRec = NodesTable.New(userId, role)
-      re  = db.save(nnRec)
-      re match {
-        case Some(NodesTable.Persisted(pUserId, pRole, pVersion, pStatus, pCloudId, _)) =>
-          assert(pUserId  == userId)
-          assert(pRole    == role)
-          assert(pVersion == 4)
-          assert(pStatus  == Status.New)
-          assert(pCloudId.isEmpty)
-        case unknown =>
-          fail(s"unknown $unknown")
-      }
-      val ppppRec  = re.get
+      rec = db.save(nnRec)
+      assert(rec.userId  == userId)
+      assert(rec.role    == role)
+      assert(rec.version == 4)
+      assert(rec.status  == Status.New)
+      assert(rec.cloudId.isEmpty)
+
       val ppppLast = db.last(userId, role).get
-      assert(ppppRec == ppppLast)
+      assert(rec == ppppLast)
     }
   }
 }

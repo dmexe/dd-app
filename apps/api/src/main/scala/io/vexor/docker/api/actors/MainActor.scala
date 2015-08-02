@@ -31,11 +31,7 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
   import MainActor._
 
   def initDb(url: String): Try[ModelRegistry] = {
-    val db = ModelRegistry(url)
-    db.map { r =>
-      r.up()
-      r
-    }
+    Try { ModelRegistry(url).up() }
   }
 
   def initDockerCa(reg: ModelRegistry): Try[CA] = {
@@ -62,7 +58,7 @@ class MainActor(cfg: Config) extends Actor with ActorLogging with DefaultTimeout
   }
 
   def initSshKey(reg: ModelRegistry): Try[SshKey] = {
-    SshKey(reg.properties, "docker")
+    Try{ SshKey(reg.properties, "docker") }
   }
 
   def startProxyActor(dockerCa: CA, clientsCa: CA, nodesActor: ActorRef): Try[ActorRef] = {

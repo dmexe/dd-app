@@ -3,8 +3,6 @@ package io.vexor.docker.api.models
 import com.datastax.driver.core.{Cluster, QueryLogger}
 import io.vexor.docker.api.Utils._
 
-import scala.util.Try
-
 object DB {
   type Session = com.datastax.driver.core.Session
 }
@@ -15,12 +13,10 @@ class DB (url: String) {
 
   var session = Option.empty[Session]
 
-  def open(): Try[Session] = {
+  def open(): Session = {
     close()
-    val re = Try(openSession(url))
-    if(re.isSuccess) {
-      session = Some(re.get)
-    }
+    val re = openSession(url)
+    session = Some(re)
     re
   }
 
@@ -46,7 +42,7 @@ class DB (url: String) {
     val cluster  = Cluster.builder().addContactPoint(host).withPort(port).build()
 
     try {
-      val logger   = QueryLogger.builder(cluster).build()
+      val logger = QueryLogger.builder(cluster).build()
       cluster.register(logger)
 
       val session  = cluster.connect()
