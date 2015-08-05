@@ -1,4 +1,4 @@
-.PHONY: build deps
+.PHONY: build deps vim
 
 build:
 	gb build
@@ -6,3 +6,6 @@ build:
 deps:
 	go get github.com/constabulary/gb/...
 	gb vendor restore
+
+vim:
+	GOPATH=./src:./vendor/src mvim .

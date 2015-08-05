@@ -4,7 +4,7 @@
 		{
 			"importpath": "github.com/Sirupsen/logrus",
 			"repository": "https://github.com/Sirupsen/logrus",
-			"revision": "ab7e46ea22bd379e660230844f96d20f1dabc21a",
+			"revision": "8bca2664072173a3c71db4c28ca8d304079b1787",
 			"branch": "master"
 		}
 	]
