@@ -1,7 +1,8 @@
-.PHONY: build deps-gb deps-fetch
+.PHONY: build deps
 
 build:
 	gb build
 
-deps-deps:
+deps:
 	go get github.com/constabulary/gb/...
+	gb vendor restore
