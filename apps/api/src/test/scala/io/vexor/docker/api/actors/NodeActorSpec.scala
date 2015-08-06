@@ -166,6 +166,30 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     expectMsg(NodeActor.StatusSuccess(State.Idle, Data.Empty))
   }
 
+  def expectActiveState(nodeActor: ActorRef) = {
+    nodeActor ! Command.Status
+    expectMsgPF(5.seconds) {
+      case NodeActor.StatusSuccess(State.Active, Data.Node(_)) =>
+    }
+  }
+
+  def expectPendingState(nodeActor: ActorRef) = {
+    nodeActor ! Command.Status
+    expectMsgPF(5.seconds) {
+      case NodeActor.StatusSuccess(State.Pending, Data.Node(_)) =>
+    }
+  }
+
+  def expectCloudGet(cloudActor: TestProbe) = {
+    cloudActor.expectMsgPF(10.seconds) {
+      case CloudActor.Command.Get(_) =>
+    }
+  }
+
+  def cloudReplySuccess(cloudActor: TestProbe, instance: CloudActor.Instance) = {
+    cloudActor.reply(CloudActor.GetSuccess(instance))
+  }
+
   "A NodeActor actor" must {
     "successfuly create and processing node" in {
       val cloudActor = TestProbe()
@@ -183,7 +207,32 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       assertPersistentVersions(expected)
     }
 
-    "successfuly get instance" in {
+    "successfuly wait for missing instance" in {
+      val cloudActor = TestProbe()
+      val nodeActor  = getNodeActor(db, cloudActor.ref)
+
+      expectIdleState(nodeActor)
+      passIdleState(nodeActor)
+      passNewState(cloudActor)
+      expectPendingState(nodeActor)
+
+      // send pending
+      expectCloudGet(cloudActor)
+      cloudActor.reply(CloudActor.GetSuccess(pendingInstance))
+      expectPendingState(nodeActor)
+
+      // send failure
+      expectCloudGet(cloudActor)
+      cloudActor.reply(CloudActor.GetFailure("noop"))
+      expectPendingState(nodeActor)
+
+      // send active
+      expectCloudGet(cloudActor)
+      cloudActor.reply(CloudActor.GetSuccess(activeInstance))
+      expectActiveState(nodeActor)
+    }
+
+    "successfuly process get instance command" in {
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 
@@ -197,7 +246,6 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       passIdleState(nodeActor)
       passNewState(cloudActor)
       passPendingState(nodeActor, cloudActor)
-
 
       // pending -> fail
       nodeActor ! NodeActor.Command.GetInstance
@@ -285,28 +333,29 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       assertPersistentVersions(expected)
     }
 
-    "fail when await instance is running: timeout reached (State.Pending)" in {
+    "fail await instance is running: state timeout reached (State.Pending)" in {
       val cloudActor = TestProbe()
       val nodeActorProps = Props(new NodeActor(db, cloudActor.ref, userId, role) {
-        override lazy val tickInterval   = 1.minute
-        override lazy val pendingTimeout = 100.millis
+        override lazy val tickInterval   = 100.millis
+        override lazy val pendingTimeout = 150.millis
       })
       val nodeActor = system.actorOf(nodeActorProps)
 
       passIdleState(nodeActor)
       passNewState(cloudActor)
 
-      nodeActor ! Command.Status
-      expectMsgPF(5.seconds) {
-        case NodeActor.StatusSuccess(State.Pending, _) =>
+      cloudActor.expectMsgPF(5.seconds) {
+        case CloudActor.Command.Get(id) =>
       }
+      cloudActor.reply(CloudActor.GetSuccess(pendingInstance))
 
-      Thread.sleep(500)
+      Thread.sleep(300)
       expectIdleState(nodeActor)
 
-      val expected = List((3, "Broken"), (2,"Pending"),(1, "New"))
+      val expected = List((3, "Broken"), (2, "Pending"),(1, "New"))
       assertPersistentVersions(expected)
     }
+
 
     "fail when await instance termination: instance down (State.Active)" in {
       val cloudActor  = TestProbe()

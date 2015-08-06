@@ -19,7 +19,6 @@ with DefaultTimeout {
 
   lazy val tickInterval   = 5.seconds
   lazy val pendingTimeout = 5.minutes
-  lazy val frozenTimeout  = 1.minute
 
   recoveryState()
 
@@ -31,16 +30,12 @@ with DefaultTimeout {
     createInstanceForNode
   }
 
-  when(State.Pending, stateTimeout = pendingTimeout) {
+  when(State.Pending) {
     awaitInstanceIsRunning orElse handlePersisted
   }
 
   when(State.Active) {
     awaitInstanceTermination orElse handlePersisted
-  }
-
-  when(State.Frozen) {
-    awaitInstanceUp
   }
 
   whenUnhandled {
@@ -82,8 +77,10 @@ with DefaultTimeout {
   onTransition {
     case _ -> State.Pending =>
       setTimer("awaitInstanceIsRunning", Command.AwaitInstanceIsRunning, tickInterval, repeat = true)
+      setTimer("pendingTimeoutReached",  Command.PendingTimeoutReached, pendingTimeout, repeat = false)
     case State.Pending -> _ =>
       cancelTimer("awaitInstanceIsRunning")
+      cancelTimer("pendingTimeoutReached")
   }
 
   onTransition {
@@ -138,7 +135,7 @@ with DefaultTimeout {
         case _ =>
           stay()
       }
-    case Event(StateTimeout, Data.Node(node)) =>
+    case Event(Command.PendingTimeoutReached, Data.Node(node)) =>
       gotoShutdown(node, s"Pending timeout $pendingTimeout was reached")
   }
 
@@ -151,23 +148,6 @@ with DefaultTimeout {
         case error =>
           gotoShutdown(node, error.toString)
       }
-  }
-
-  // Frozen
-  def awaitInstanceUp: StateFunction = {
-    case Event(Command.AwaitInstanceUp, Data.Node(node)) =>
-      getInstance(node) match {
-        case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.On =>
-          goto(State.Active)
-        case Success(CloudActor.GetSuccess(instance)) if instance.status == CloudStatus.Pending =>
-          stay()
-        case Success(CloudActor.GetSuccess(instance)) =>
-          gotoShutdown(node, s"Instance in ${instance.status}")
-        case _ =>
-          stay()
-      }
-    case Event(StateTimeout, Data.Node(node)) =>
-      gotoShutdown(node, s"Frozen timeout $frozenTimeout was reached")
   }
 
   // Any
@@ -235,12 +215,14 @@ object NodeActor {
     case object Create
     case object Get
     case object GetInstance
+    case object Status
+
+    // private commands
     case object CreateInstance
     case object AwaitInstanceIsRunning
-    case object AwaitInstanceUp
+    case object PendingTimeoutReached
     case object AwaitInstanceTermination
     case class  Persisted(node: PersistedNode)
-    case object Status
   }
 
   sealed trait State
@@ -249,7 +231,6 @@ object NodeActor {
     case object New     extends State
     case object Pending extends State
     case object Active  extends State
-    case object Frozen  extends State
   }
 
   sealed trait Data
