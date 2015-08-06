@@ -158,7 +158,9 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
     val inst = Props(new NodeActor(db, cloud, userId, role) {
       override lazy val tickInterval   = 300.millis
     })
-    system.actorOf(inst)
+    val re = system.actorOf(inst)
+    Thread.sleep(100) // for recovery
+    re
   }
 
   def expectIdleState(nodeActor: ActorRef) = {
@@ -341,6 +343,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       })
       val nodeActor = system.actorOf(nodeActorProps)
 
+      Thread.sleep(100) // for recovery
+
       passIdleState(nodeActor)
       passNewState(cloudActor)
 
@@ -390,10 +394,14 @@ with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach w
       val cloudActor = TestProbe()
       val nodeActor  = getNodeActor(db, cloudActor.ref)
 
+      passNewState(cloudActor)
+
       nodeActor ! NodeActor.Command.Status
       expectMsgPF(5.seconds) {
-        case NodeActor.StatusSuccess(NodeActor.State.New, _) =>
+        case NodeActor.StatusSuccess(NodeActor.State.Pending, _) =>
       }
+      val expected = List((2,"Pending"),(1, "New"))
+      assertPersistentVersions(expected)
     }
 
     "successfuly recovery actor state from Pending" in {

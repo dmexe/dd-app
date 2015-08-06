@@ -20,7 +20,11 @@ with DefaultTimeout {
   lazy val tickInterval   = 5.seconds
   lazy val pendingTimeout = 5.minutes
 
-  recoveryState()
+  startWith(State.Recovery, Data.Empty)
+
+  when(State.Recovery) {
+    awaitRecovery
+  }
 
   when(State.Idle) {
     awaitNodeCreation
@@ -95,11 +99,32 @@ with DefaultTimeout {
       log.info(s"Transition $a -> $b using $nextStateData")
   }
 
+  override def preStart(): Unit = {
+    self ! Command.Recovery
+  }
+
   initialize()
 
   //
   // Actions
   //
+
+  def awaitRecovery(): StateFunction = {
+    case Event(Command.Recovery, _) =>
+      val maybeNode = db.one(userId, role)
+      log.info(s"Recovery [node=$maybeNode]")
+      maybeNode match {
+        case Some(node) if node.status == NodeStatus.New =>
+          goto(State.New) using Data.Node(node)
+        case Some(node) if node.status == NodeStatus.Pending =>
+          goto(State.Pending) using Data.Node(node)
+        case Some(node) if node.status == NodeStatus.Active =>
+          goto(State.Active) using Data.Node(node)
+        case _ =>
+          goto(State.Idle) using Data.Empty
+      }
+  }
+
 
   // Idle
   def awaitNodeCreation: StateFunction = {
@@ -159,21 +184,6 @@ with DefaultTimeout {
   //
   // Helpers
   //
-  def recoveryState(): Unit = {
-      val maybeNode = db.one(userId, role)
-      log.info(s"Recovery [node=$maybeNode]")
-      maybeNode match {
-        case Some(node) if node.status == NodeStatus.New =>
-          startWith(State.New, Data.Node(node))
-        case Some(node) if node.status == NodeStatus.Pending =>
-          startWith(State.Pending, Data.Node(node))
-        case Some(node) if node.status == NodeStatus.Active =>
-          startWith(State.Active, Data.Node(node))
-        case _ =>
-          startWith(State.Idle, Data.Empty)
-      }
-  }
-
   def getInstance(node: PersistedNode): Try[CloudActor.GetReply] = {
     val id = node.cloudId.getOrElse("")
     val fu = cloudActor ? CloudCommand.Get(id)
@@ -218,6 +228,7 @@ object NodeActor {
     case object Status
 
     // private commands
+    case object Recovery
     case object CreateInstance
     case object AwaitInstanceIsRunning
     case object PendingTimeoutReached
@@ -227,10 +238,11 @@ object NodeActor {
 
   sealed trait State
   object State {
-    case object Idle    extends State
-    case object New     extends State
-    case object Pending extends State
-    case object Active  extends State
+    case object Recovery extends State
+    case object Idle     extends State
+    case object New      extends State
+    case object Pending  extends State
+    case object Active   extends State
   }
 
   sealed trait Data
